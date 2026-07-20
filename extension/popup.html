@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주린이 뉴스 번역기</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📰 주린이 번역기</h1>
+      <div class="settings">
+        <button id="settings-btn" class="settings-btn" title="설정">⚙️</button>
+      </div>
+    </div>
+
+    <!-- 설정 패널 -->
+    <div id="settings-panel" class="settings-panel" hidden>
+      <div class="setting-item">
+        <label>API 주소:</label>
+        <input type="text" id="api-url" placeholder="https://api.example.com">
+      </div>
+      <div class="setting-item">
+        <label>API 키:</label>
+        <input type="password" id="api-key" placeholder="sk-...">
+      </div>
+      <div class="setting-actions">
+        <button id="save-settings" class="btn btn-primary">저장</button>
+        <button id="cancel-settings" class="btn btn-secondary">취소</button>
+      </div>
+    </div>
+
+    <!-- 기사 입력 섹션 -->
+    <div id="input-section" class="section">
+      <textarea id="article-text" rows="6" placeholder="기사 텍스트가 여기에 표시됩니다..."></textarea>
+      <div class="actions">
+        <button id="extract-btn" class="btn btn-secondary">현재 페이지에서 기사 추출</button>
+        <button id="translate-btn" class="btn btn-primary">번역하기</button>
+      </div>
+      <p id="error-msg" class="error" hidden></p>
+      <p id="status-msg" class="status" hidden></p>
+    </div>
+
+    <!-- 결과 섹션 -->
+    <div id="result-section" class="section" hidden>
+      <div class="summary-card" id="summary-card" hidden>
+        <h3>📌 세 줄 요약</h3>
+        <p id="summary-text"></p>
+      </div>
+      <div id="sentences-container"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
