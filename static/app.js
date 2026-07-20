@@ -1,6 +1,9 @@
 /* 주린이 뉴스 번역기 프론트엔드 */
 "use strict";
 
+// API URL 동적 설정 (Vercel 배포 시 환경 변수 사용)
+const API_BASE_URL = window.__API_BASE_URL__ || '';
+
 // ---------------------------------------------------------------------------
 // 샘플 기사
 // ---------------------------------------------------------------------------
@@ -68,7 +71,7 @@ translateBtn.addEventListener("click", async () => {
   translateBtn.disabled = true;
   translateBtn.textContent = "번역 중…";
   try {
-    const data = await fetchJSON("/api/translate", {
+    const data = await fetchJSON(API_BASE_URL + "/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
@@ -159,7 +162,7 @@ let popToken = 0;
 const quoteCache = new Map();
 async function getQuote(code) {
   if (!quoteCache.has(code)) {
-    quoteCache.set(code, fetchJSON(`/api/stocks/${code}`).catch((e) => {
+    quoteCache.set(code, fetchJSON(API_BASE_URL + `/api/stocks/${code}`).catch((e) => {
       quoteCache.delete(code);
       throw e;
     }));
@@ -356,7 +359,7 @@ function closeChart() {
 async function loadChart(code, range) {
   $("#chart-loading").hidden = false;
   try {
-    const data = await fetchJSON(`/api/stocks/${code}/chart?range=${range}`);
+    const data = await fetchJSON(API_BASE_URL + `/api/stocks/${code}/chart?range=${range}`);
     if (chartState.code !== code) return;
     chartState.candles = data.candles;
     chartState.hoverIndex = -1;
