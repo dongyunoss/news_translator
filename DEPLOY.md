@@ -9,7 +9,7 @@
 3. New Project → Deploy from GitHub repo 선택
 4. `dongyunoss/news_translator` 선택
 5. 환경 변수 설정:
-   - `ANTHROPIC_API_KEY`: Claude API 키
+   - `OPENAI_API_KEY`: OpenAI API 키 (sk-...)
 
 Railway가 자동으로 `Procfile`을 인식하고 FastAPI 앱을 실행합니다.
 
@@ -44,7 +44,7 @@ http://localhost:8000 접속
 ### 로컬 개발
 `.env` 파일 생성:
 ```
-ANTHROPIC_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
 ```
 
 ### Railway
@@ -65,9 +65,10 @@ news_translator/
 │   └── app.js
 ├── app/              # 백엔드 (Railway 배포)
 │   ├── main.py       # FastAPI 앱
-│   ├── translator.py # Claude 번역
+│   ├── translator.py # OpenAI GPT 번역
 │   ├── stocks.py     # 주식 데이터
 │   └── data/         # glossary.json, stocks.json
+├── extension/        # Chrome 확장프로그램
 ├── requirements.txt  # Python 의존성
 ├── Procfile          # Railway 배포 설정
 ├── vercel.json       # Vercel 배포 설정
