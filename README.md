@@ -5,7 +5,7 @@
 ## 주요 기능
 
 1. **쉬운 말 번역** — 기사를 붙여넣으면 문장별로 쉬운 한국어 해설과 세 줄 요약을 보여줍니다.
-   - OpenAI GPT(`gpt-4o-mini`)를 사용해 자연스러운 번역을 생성합니다.
+   - Google Gemini API(`gemini-1.5-flash`)를 사용해 자연스러운 번역을 생성합니다.
    - API 키가 없으면 내장 경제 용어사전(45개 용어) 기반 간이 번역으로 자동 폴백합니다.
 2. **문장 호버 → 관련 종목 동향** — 문장에 마우스를 올리면 그 문장과 관련된 종목 리스트가 팝오버로 뜨고, 현재가·등락률·최근 30일 스파크라인을 보여줍니다.
    - 기사에 직접 언급된 종목 + 섹터 키워드(반도체, 2차전지, 방산 등 17개 섹터) 기반 관련주를 매칭합니다.
@@ -17,16 +17,16 @@
 ```bash
 pip install -r requirements.txt
 
-# (필수) OpenAI API 키 설정
-export OPENAI_API_KEY=sk-...
+# (권장) Google Gemini API 키 설정
+export GOOGLE_API_KEY=...
 
 python run.py
 # → http://localhost:8000
 ```
 
 **API 키 발급:**
-- [OpenAI Platform](https://platform.openai.com/account/api-keys)에서 발급
-- `gpt-4o-mini` 사용 (저렴하고 빠름)
+- [Google AI Studio](https://aistudio.google.com/app/apikey)에서 무료로 발급
+- `gemini-1.5-flash` 사용 (빠르고 저렴)
 - 키가 없으면 내장 용어사전으로 자동 폴백
 
 ## 시세 데이터
@@ -47,7 +47,7 @@ python run.py
 ```
 app/
 ├── main.py        # FastAPI 앱 + 정적 파일 서빙
-├── translator.py  # OpenAI GPT 번역 + 용어사전 폴백
+├── translator.py  # Google Gemini 번역 + 용어사전 폴백
 ├── stocks.py      # 종목/섹터 매칭, 시세(라이브→모의 폴백)
 └── data/
     ├── stocks.json    # 종목 유니버스(44종목) + 섹터 키워드

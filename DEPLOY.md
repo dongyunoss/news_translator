@@ -9,7 +9,7 @@
 3. New Project → Deploy from GitHub repo 선택
 4. `dongyunoss/news_translator` 선택
 5. 환경 변수 설정:
-   - `OPENAI_API_KEY`: OpenAI API 키 (sk-...)
+   - `GOOGLE_API_KEY`: Google Gemini API 키
 
 Railway가 자동으로 `Procfile`을 인식하고 FastAPI 앱을 실행합니다.
 
@@ -44,8 +44,10 @@ http://localhost:8000 접속
 ### 로컬 개발
 `.env` 파일 생성:
 ```
-OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=...
 ```
+
+[Google AI Studio](https://aistudio.google.com/app/apikey)에서 무료로 API 키 발급
 
 ### Railway
 Project Settings → Variables에서 추가

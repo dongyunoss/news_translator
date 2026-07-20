@@ -1,6 +1,6 @@
 """뉴스 기사를 주식 초보자('주린이') 눈높이의 쉬운 문장으로 번역한다.
 
-OpenAI GPT API(gpt-4o-mini)를 우선 사용하고,
+Google Gemini API(gemini-1.5-flash)를 우선 사용하고,
 API 키가 없거나 호출에 실패하면 내장 경제 용어사전 기반 주석 번역으로 폴백한다.
 """
 
@@ -29,7 +29,7 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 _client = None
 _client_lock = threading.Lock()
-_gpt_disabled = False
+_gemini_disabled = False
 
 _SYSTEM_PROMPT = """\
 너는 주식을 처음 시작한 초보 투자자('주린이')를 위한 경제 뉴스 해설가야.
@@ -87,39 +87,35 @@ def _get_client():
     global _client
     with _client_lock:
         if _client is None:
-            from openai import OpenAI
-            _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            import google.generativeai as genai
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if api_key:
+                genai.configure(api_key=api_key)
+            _client = genai.GenerativeModel("gemini-1.5-flash")
         return _client
 
 
-def _gpt_translate(sentences: list[str]) -> tuple[list[str], str]:
-    """GPT로 문장별 쉬운 번역 + 요약을 생성한다. 실패 시 예외."""
+def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
+    """Gemini로 문장별 쉬운 번역 + 요약을 생성한다. 실패 시 예외."""
     numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
 
-    resp = _get_client().chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.3,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"다음 경제 뉴스 문장들을 번역해줘. 총 {len(sentences)}문장이야.\n\n{numbered}",
-            }
-        ],
-    )
+    prompt = f"{_SYSTEM_PROMPT}\n\n다음 경제 뉴스 문장들을 번역해줘. 총 {len(sentences)}문장이야.\n\n{numbered}"
 
-    text = resp.choices[0].message.content
-    data = json.loads(text)
-    easy = [s["easy"] for s in data["sentences"]]
+    try:
+        response = _get_client().generate_content(prompt)
+        text = response.text
+        data = json.loads(text)
+        easy = [s["easy"] for s in data["sentences"]]
 
-    if len(easy) < len(sentences):
-        easy += sentences[len(easy):]
-    return easy[: len(sentences)], data["summary"]
+        if len(easy) < len(sentences):
+            easy += sentences[len(easy):]
+        return easy[: len(sentences)], data["summary"]
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON 파싱 실패: {text}") from e
 
 
 def translate_article(text: str) -> dict:
-    global _gpt_disabled
+    global _gemini_disabled
 
     text = text.strip()[:MAX_ARTICLE_CHARS]
     sentences = split_sentences(text)
@@ -133,21 +129,21 @@ def translate_article(text: str) -> dict:
     easy_list: list[str] | None = None
     source = "glossary"
 
-    if not _gpt_disabled:
+    if not _gemini_disabled:
         try:
-            easy_list, summary = _gpt_translate(sentences)
-            source = "gpt"
+            easy_list, summary = _gemini_translate(sentences)
+            source = "gemini"
         except Exception as exc:
-            from openai import AuthenticationError
-            if isinstance(exc, AuthenticationError):
-                _gpt_disabled = True
+            # API 키 없음 또는 다른 인증 오류
+            if "API_KEY" in str(exc) or "api_key" in str(exc).lower():
+                _gemini_disabled = True
             easy_list = None
 
     if easy_list is None:
         easy_list = [_fallback_easy(s, t) for s, t in zip(sentences, per_terms)]
         notice = (
-            "OpenAI API를 사용할 수 없어 내장 용어사전 기반 간이 번역으로 보여주고 있어요. "
-            "OPENAI_API_KEY를 설정하면 문장 전체를 자연스러운 쉬운 말로 번역해 드려요."
+            "Google Gemini API를 사용할 수 없어 내장 용어사전 기반 간이 번역으로 보여주고 있어요. "
+            "GOOGLE_API_KEY를 설정하면 문장 전체를 자연스러운 쉬운 말로 번역해 드려요."
         )
 
     result_sentences = []
