@@ -1,0 +1,101 @@
+{
+  "sectors": {
+    "반도체": {
+      "keywords": ["반도체", "메모리", "D램", "디램", "낸드", "HBM", "파운드리", "칩", "웨이퍼", "AI 반도체", "시스템반도체"]
+    },
+    "2차전지": {
+      "keywords": ["2차전지", "이차전지", "배터리", "양극재", "음극재", "리튬", "전고체"]
+    },
+    "자동차": {
+      "keywords": ["자동차", "완성차", "전기차", "하이브리드", "모빌리티", "자율주행"]
+    },
+    "인터넷/플랫폼": {
+      "keywords": ["플랫폼", "인터넷", "포털", "커머스", "웹툰", "AI 서비스", "검색"]
+    },
+    "바이오": {
+      "keywords": ["바이오", "제약", "신약", "임상", "바이오시밀러", "위탁생산", "CDMO"]
+    },
+    "금융": {
+      "keywords": ["은행", "금융지주", "대출", "예금", "금리 인하", "금리 인상", "밸류업"]
+    },
+    "조선": {
+      "keywords": ["조선", "선박", "LNG선", "수주", "해양플랜트", "함정"]
+    },
+    "철강": {
+      "keywords": ["철강", "강판", "후판", "철광석"]
+    },
+    "화학/정유": {
+      "keywords": ["석유화학", "화학", "정유", "유가", "나프타", "정제마진"]
+    },
+    "방산": {
+      "keywords": ["방산", "무기", "국방", "미사일", "자주포", "전차"]
+    },
+    "엔터": {
+      "keywords": ["엔터", "케이팝", "K팝", "아이돌", "앨범", "콘서트", "팬덤"]
+    },
+    "게임": {
+      "keywords": ["게임", "신작", "모바일게임", "콘솔"]
+    },
+    "항공": {
+      "keywords": ["항공", "여객", "화물 운임", "항공유"]
+    },
+    "유통/소비": {
+      "keywords": ["유통", "소비", "마트", "편의점", "내수"]
+    },
+    "통신": {
+      "keywords": ["통신", "5G", "6G", "통신요금"]
+    },
+    "건설": {
+      "keywords": ["건설", "부동산", "분양", "재건축", "PF"]
+    },
+    "전력/원전": {
+      "keywords": ["전력", "원전", "원자력", "전기요금", "송전", "전력기기", "변압기"]
+    }
+  },
+  "stocks": [
+    {"code": "005930", "name": "삼성전자", "market": "KOSPI", "sector": "반도체", "aliases": ["삼성전자", "삼전"], "base_price": 78000},
+    {"code": "000660", "name": "SK하이닉스", "market": "KOSPI", "sector": "반도체", "aliases": ["SK하이닉스", "하이닉스"], "base_price": 240000},
+    {"code": "042700", "name": "한미반도체", "market": "KOSPI", "sector": "반도체", "aliases": ["한미반도체"], "base_price": 95000},
+    {"code": "000990", "name": "DB하이텍", "market": "KOSPI", "sector": "반도체", "aliases": ["DB하이텍"], "base_price": 42000},
+    {"code": "373220", "name": "LG에너지솔루션", "market": "KOSPI", "sector": "2차전지", "aliases": ["LG에너지솔루션", "엘지에너지솔루션", "LG엔솔"], "base_price": 380000},
+    {"code": "006400", "name": "삼성SDI", "market": "KOSPI", "sector": "2차전지", "aliases": ["삼성SDI"], "base_price": 300000},
+    {"code": "247540", "name": "에코프로비엠", "market": "KOSDAQ", "sector": "2차전지", "aliases": ["에코프로비엠"], "base_price": 180000},
+    {"code": "003670", "name": "포스코퓨처엠", "market": "KOSPI", "sector": "2차전지", "aliases": ["포스코퓨처엠", "POSCO퓨처엠"], "base_price": 180000},
+    {"code": "005380", "name": "현대차", "market": "KOSPI", "sector": "자동차", "aliases": ["현대차", "현대자동차"], "base_price": 260000},
+    {"code": "000270", "name": "기아", "market": "KOSPI", "sector": "자동차", "aliases": ["기아", "기아차"], "base_price": 120000},
+    {"code": "012330", "name": "현대모비스", "market": "KOSPI", "sector": "자동차", "aliases": ["현대모비스"], "base_price": 250000},
+    {"code": "035420", "name": "NAVER", "market": "KOSPI", "sector": "인터넷/플랫폼", "aliases": ["NAVER", "네이버"], "base_price": 200000},
+    {"code": "035720", "name": "카카오", "market": "KOSPI", "sector": "인터넷/플랫폼", "aliases": ["카카오"], "base_price": 45000},
+    {"code": "207940", "name": "삼성바이오로직스", "market": "KOSPI", "sector": "바이오", "aliases": ["삼성바이오로직스", "삼바"], "base_price": 950000},
+    {"code": "068270", "name": "셀트리온", "market": "KOSPI", "sector": "바이오", "aliases": ["셀트리온"], "base_price": 180000},
+    {"code": "196170", "name": "알테오젠", "market": "KOSDAQ", "sector": "바이오", "aliases": ["알테오젠"], "base_price": 300000},
+    {"code": "105560", "name": "KB금융", "market": "KOSPI", "sector": "금융", "aliases": ["KB금융", "KB금융지주"], "base_price": 90000},
+    {"code": "055550", "name": "신한지주", "market": "KOSPI", "sector": "금융", "aliases": ["신한지주", "신한금융"], "base_price": 55000},
+    {"code": "086790", "name": "하나금융지주", "market": "KOSPI", "sector": "금융", "aliases": ["하나금융지주", "하나금융"], "base_price": 65000},
+    {"code": "323410", "name": "카카오뱅크", "market": "KOSPI", "sector": "금융", "aliases": ["카카오뱅크"], "base_price": 22000},
+    {"code": "009540", "name": "HD한국조선해양", "market": "KOSPI", "sector": "조선", "aliases": ["HD한국조선해양", "한국조선해양"], "base_price": 200000},
+    {"code": "042660", "name": "한화오션", "market": "KOSPI", "sector": "조선", "aliases": ["한화오션"], "base_price": 60000},
+    {"code": "010140", "name": "삼성중공업", "market": "KOSPI", "sector": "조선", "aliases": ["삼성중공업"], "base_price": 14000},
+    {"code": "005490", "name": "POSCO홀딩스", "market": "KOSPI", "sector": "철강", "aliases": ["POSCO홀딩스", "포스코홀딩스", "포스코"], "base_price": 280000},
+    {"code": "004020", "name": "현대제철", "market": "KOSPI", "sector": "철강", "aliases": ["현대제철"], "base_price": 30000},
+    {"code": "051910", "name": "LG화학", "market": "KOSPI", "sector": "화학/정유", "aliases": ["LG화학", "엘지화학"], "base_price": 320000},
+    {"code": "096770", "name": "SK이노베이션", "market": "KOSPI", "sector": "화학/정유", "aliases": ["SK이노베이션"], "base_price": 110000},
+    {"code": "010950", "name": "S-Oil", "market": "KOSPI", "sector": "화학/정유", "aliases": ["S-Oil", "에쓰오일"], "base_price": 65000},
+    {"code": "012450", "name": "한화에어로스페이스", "market": "KOSPI", "sector": "방산", "aliases": ["한화에어로스페이스", "한화에어로"], "base_price": 700000},
+    {"code": "079550", "name": "LIG넥스원", "market": "KOSPI", "sector": "방산", "aliases": ["LIG넥스원"], "base_price": 250000},
+    {"code": "064350", "name": "현대로템", "market": "KOSPI", "sector": "방산", "aliases": ["현대로템"], "base_price": 100000},
+    {"code": "352820", "name": "하이브", "market": "KOSPI", "sector": "엔터", "aliases": ["하이브"], "base_price": 220000},
+    {"code": "035900", "name": "JYP Ent.", "market": "KOSDAQ", "sector": "엔터", "aliases": ["JYP", "JYP엔터"], "base_price": 60000},
+    {"code": "041510", "name": "에스엠", "market": "KOSDAQ", "sector": "엔터", "aliases": ["에스엠", "SM엔터"], "base_price": 80000},
+    {"code": "259960", "name": "크래프톤", "market": "KOSPI", "sector": "게임", "aliases": ["크래프톤"], "base_price": 320000},
+    {"code": "036570", "name": "엔씨소프트", "market": "KOSPI", "sector": "게임", "aliases": ["엔씨소프트", "엔씨"], "base_price": 180000},
+    {"code": "003490", "name": "대한항공", "market": "KOSPI", "sector": "항공", "aliases": ["대한항공"], "base_price": 23000},
+    {"code": "139480", "name": "이마트", "market": "KOSPI", "sector": "유통/소비", "aliases": ["이마트"], "base_price": 60000},
+    {"code": "017670", "name": "SK텔레콤", "market": "KOSPI", "sector": "통신", "aliases": ["SK텔레콤", "SKT"], "base_price": 55000},
+    {"code": "030200", "name": "KT", "market": "KOSPI", "sector": "통신", "aliases": ["KT"], "base_price": 45000},
+    {"code": "000720", "name": "현대건설", "market": "KOSPI", "sector": "건설", "aliases": ["현대건설"], "base_price": 30000},
+    {"code": "015760", "name": "한국전력", "market": "KOSPI", "sector": "전력/원전", "aliases": ["한국전력", "한전"], "base_price": 22000},
+    {"code": "034020", "name": "두산에너빌리티", "market": "KOSPI", "sector": "전력/원전", "aliases": ["두산에너빌리티"], "base_price": 40000},
+    {"code": "267260", "name": "HD현대일렉트릭", "market": "KOSPI", "sector": "전력/원전", "aliases": ["HD현대일렉트릭", "현대일렉트릭"], "base_price": 300000}
+  ]
+}

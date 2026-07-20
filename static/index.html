@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주린이 뉴스 번역기</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📰</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>📰 주린이 뉴스 번역기</h1>
+    <p class="tagline">어려운 경제 뉴스를 쉬운 말로 — 문장에 마우스를 올리면 관련 종목이, 종목명을 클릭하면 차트가 나와요</p>
+  </header>
+
+  <main>
+    <section class="card" id="input-section">
+      <textarea id="article-input" rows="8"
+        placeholder="번역하고 싶은 경제 뉴스 기사를 붙여넣어 주세요…"></textarea>
+      <div class="input-actions">
+        <div class="samples">
+          <span class="samples-label">샘플 기사:</span>
+          <button class="sample-btn" data-sample="0">반도체·금리</button>
+          <button class="sample-btn" data-sample="1">전기차·자동차</button>
+          <button class="sample-btn" data-sample="2">방산·조선</button>
+        </div>
+        <button id="translate-btn">쉬운 말로 번역하기</button>
+      </div>
+      <p id="error-box" class="error" hidden></p>
+    </section>
+
+    <section id="result-section" hidden>
+      <div class="card notice" id="notice-box" hidden></div>
+      <div class="card summary" id="summary-card" hidden>
+        <h2>📌 세 줄 요약</h2>
+        <p id="summary-text"></p>
+      </div>
+      <div class="hint">💡 문장 위에 마우스를 올리면 관련 종목 동향이 떠요. <span class="ticker-demo">파란 종목명</span>이나 <span class="term-demo">점선 용어</span>도 눌러보고 올려보세요.</div>
+      <div id="sentences"></div>
+    </section>
+  </main>
+
+  <!-- 문장 호버 시 관련 종목 팝오버 -->
+  <div id="stock-popover" class="popover" hidden></div>
+
+  <!-- 용어 설명 툴팁 -->
+  <div id="term-tooltip" class="tooltip" hidden></div>
+
+  <!-- 종목 차트 모달 -->
+  <div id="chart-modal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">
+            <span id="chart-name"></span>
+            <span id="chart-code" class="code-chip"></span>
+            <span id="chart-sector" class="sector-chip"></span>
+          </div>
+          <div class="modal-quote">
+            <span id="chart-price"></span>
+            <span id="chart-change"></span>
+          </div>
+        </div>
+        <button id="chart-close" class="close-btn" aria-label="닫기">✕</button>
+      </div>
+      <div class="range-buttons" id="range-buttons">
+        <button data-range="1m">1개월</button>
+        <button data-range="3m" class="active">3개월</button>
+        <button data-range="6m">6개월</button>
+        <button data-range="1y">1년</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-canvas"></canvas>
+        <div id="chart-loading" class="chart-loading" hidden>불러오는 중…</div>
+      </div>
+      <p class="chart-source" id="chart-source"></p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
