@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,14 @@ from . import stocks
 from .translator import translate_article
 
 app = FastAPI(title="주린이 뉴스 번역기")
+
+# 브라우저 확장(chrome-extension://)과 배포된 프론트엔드에서 호출할 수 있게 허용
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class TranslateRequest(BaseModel):
