@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "주린이 뉴스 번역기",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "어려운 경제 뉴스를 기사 페이지 위에서 바로 쉬운 말로 번역해줍니다",
   "permissions": [
     "activeTab",
@@ -20,18 +20,9 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "*://*.naver.com/*",
-        "*://*.hankyung.com/*",
-        "*://*.mk.co.kr/*",
-        "*://*.edaily.co.kr/*",
-        "*://*.investor.co.kr/*",
-        "*://*.dailian.co.kr/*",
-        "*://*.fnnews.com/*",
-        "*://*.news.google.com/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["content_script.js"],
-      "run_at": "document_end"
+      "run_at": "document_idle"
     }
   ]
 }

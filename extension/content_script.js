@@ -1,6 +1,9 @@
 // 주린이 뉴스 번역기 — 기사 페이지 위에서 바로 동작하는 콘텐츠 스크립트.
-// 우하단 플로팅 버튼 → 페이지 안 패널에 쉬운 번역을 띄우고,
-// 문장 호버 → 관련 종목 시세, 종목 클릭 → 캔들 차트까지 페이지 위에서 처리한다.
+// 번역하면 기사 원문 문장에 하이라이트가 생기고,
+//   문장 호버  → 쉬운 번역 + 관련 종목 카드 (문장 바로 옆)
+//   종목명 클릭 → 캔들 차트 모달
+//   용어 호버  → 뜻 툴팁
+// 화면 우측에는 요약·관련 종목 시세·용어 사전이 담긴 사이드바가 뜬다.
 "use strict";
 
 // ---------------------------------------------------------------------------
@@ -8,68 +11,50 @@
 // ---------------------------------------------------------------------------
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractText') {
-    sendResponse({ text: extractArticleText() });
+    sendResponse({ text: extractArticle().text });
   }
 });
 
 // ---------------------------------------------------------------------------
-// 기사 텍스트 추출 (사이트별)
+// 기사 텍스트 추출 (사이트별 → 공통 폴백)
+// 하이라이트를 달 본문 컨테이너도 함께 돌려준다.
 // ---------------------------------------------------------------------------
-function extractArticleText() {
-  const hostname = window.location.hostname;
-  if (hostname.includes('naver.com')) return extractBySelectors(
-    ['h2.media_end_head_headline', 'h1#title_area'], ['#dic_area', '.newsct_article']);
-  if (hostname.includes('hankyung.com')) return extractBySelectors(
-    ['h1.title', 'h1.headline'], ['.article-body', '#articletxt']);
-  if (hostname.includes('mk.co.kr')) return extractBySelectors(
-    ['h2.news_ttl', 'h2.news_title', 'h1'], ['.news_cnt_detail_wrap', '#content', '.article_content']);
-  if (hostname.includes('edaily.co.kr')) return extractBySelectors(
-    ['h1.article_title', 'h2.news_titles'], ['.news_body', '#article_content']);
-  if (hostname.includes('fnnews.com')) return extractBySelectors(
-    ['h1.tit_thumb', 'h1'], ['#article_content', '.cont_art']);
-  return extractGeneric();
-}
+const SITE_RULES = [
+  { host: 'naver.com',    title: ['h2.media_end_head_headline', 'h1#title_area'], body: ['#dic_area', '.newsct_article'] },
+  { host: 'hankyung.com', title: ['h1.title', 'h1.headline'],                     body: ['.article-body', '#articletxt'] },
+  { host: 'mk.co.kr',     title: ['h2.news_ttl', 'h2.news_title', 'h1'],          body: ['.news_cnt_detail_wrap', '#content', '.article_content'] },
+  { host: 'edaily.co.kr', title: ['h1.article_title', 'h2.news_titles'],          body: ['.news_body', '#article_content'] },
+  { host: 'fnnews.com',   title: ['h1.tit_thumb', 'h1'],                          body: ['#article_content', '.cont_art'] },
+];
+const GENERIC_BODY_SELECTORS = [
+  'article', '.article-body', '.article_content', '#article-content',
+  '.news-body', '.news_body', '#newsct_article', '[itemprop="articleBody"]', '[role="main"]',
+];
 
-function extractBySelectors(titleSels, bodySels) {
+function extractArticle() {
+  const hostname = window.location.hostname;
+  const rule = SITE_RULES.find((r) => hostname.includes(r.host));
+
   let title = '';
+  let container = null;
+  const titleSels = rule ? rule.title : ['h1', 'h2.title', 'h1.headline', 'h1.article-title'];
   for (const sel of titleSels) {
     const el = document.querySelector(sel);
-    if (el && el.textContent.trim().length > 5) {
-      title = el.textContent.trim();
-      break;
-    }
+    if (el && el.textContent.trim().length > 5) { title = el.textContent.trim(); break; }
   }
-  let body = '';
+  const bodySels = (rule ? rule.body : []).concat(GENERIC_BODY_SELECTORS);
   for (const sel of bodySels) {
     const el = document.querySelector(sel);
-    if (el && el.textContent.trim().length > 100) {
-      body = cleanText(el.textContent);
-      break;
-    }
+    if (el && el.textContent.trim().length > 100) { container = el; break; }
   }
-  // 본문을 못 찾으면 사이트 공통 추출로 폴백 (제목만 갖고 끝내지 않는다)
-  if (!body) return extractGeneric();
-  return (title ? title + '\n\n' : '') + body;
-}
 
-function extractGeneric() {
-  let text = '';
-  for (const sel of ['h1', 'h2.title', 'h1.headline', 'h1.article-title']) {
-    const el = document.querySelector(sel);
-    if (el && el.textContent.trim().length > 10) {
-      text += el.textContent.trim() + '\n\n';
-      break;
-    }
+  let body = container ? cleanText(container.textContent) : '';
+  if (body.length < 50) {
+    container = document.body;
+    body = cleanText(document.body.innerText);
   }
-  for (const sel of ['article', '.article-body', '.article_content', '#article-content', '.news-body', '[role="main"]']) {
-    const el = document.querySelector(sel);
-    if (el && el.textContent.trim().length > 200) {
-      text += cleanText(el.textContent);
-      break;
-    }
-  }
-  if (text.trim().length < 50) text = cleanText(document.body.innerText);
-  return text.trim();
+  const text = ((title ? title + '\n\n' : '') + body).trim();
+  return { text, container: container || document.body };
 }
 
 function cleanText(raw) {
@@ -110,7 +95,37 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : 'flat'; }
 function changeSign(v) { return v > 0 ? '▲' : v < 0 ? '▼' : '―'; }
 
 // ---------------------------------------------------------------------------
-// UI 뼈대 — Shadow DOM으로 사이트 스타일과 완전히 격리
+// 페이지에 심는 스타일 (하이라이트는 기사 DOM에 직접 달리므로 일반 CSS 필요)
+// ---------------------------------------------------------------------------
+const pageStyle = document.createElement('style');
+pageStyle.id = 'jn-page-style';
+pageStyle.textContent = `
+.jn-hl {
+  background: rgba(37,99,235,.09) !important;
+  border-bottom: 2px solid rgba(37,99,235,.45) !important;
+  cursor: pointer !important;
+  border-radius: 2px;
+  transition: background .15s;
+}
+.jn-hl:hover, .jn-hl.jn-active { background: rgba(37,99,235,.20) !important; }
+.jn-ticker {
+  color: #2563eb !important; font-weight: 700 !important; cursor: pointer !important;
+  border-bottom: 2px solid rgba(37,99,235,.6) !important;
+}
+.jn-ticker:hover { background: rgba(37,99,235,.15) !important; }
+.jn-term {
+  border-bottom: 2px dotted #b45309 !important; cursor: help !important;
+}
+.jn-flash { animation: jnflash 1.2s ease; }
+@keyframes jnflash {
+  0%, 60% { background: rgba(250,204,21,.55); }
+  100% { background: rgba(37,99,235,.09); }
+}
+`;
+document.documentElement.appendChild(pageStyle);
+
+// ---------------------------------------------------------------------------
+// 확장 UI (Shadow DOM으로 사이트 스타일과 격리)
 // ---------------------------------------------------------------------------
 const CSS = `
 :host { all: initial; }
@@ -131,66 +146,36 @@ const CSS = `
 }
 @keyframes jnspin { to { transform: rotate(360deg); } }
 
-.panel {
+/* ------- 우측 사이드바 ------- */
+.sidebar {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147483610;
-  width: min(430px, 96vw); background: #f5f6f8; color: #1c1e21;
+  width: min(360px, 94vw); background: #f5f6f8; color: #1c1e21;
   box-shadow: -12px 0 32px rgba(0,0,0,.18);
   display: flex; flex-direction: column; font-size: 14px; line-height: 1.6;
 }
-.panel-header {
+.sidebar-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 13px 16px; background: #fff; border-bottom: 1px solid #e5e7eb;
 }
-.panel-header .title { font-size: 15px; font-weight: 700; }
-.panel-header .close {
+.sidebar-header .title { font-size: 15px; font-weight: 700; }
+.sidebar-header .close {
   background: none; border: none; font-size: 16px; color: #6b7280; cursor: pointer; padding: 4px 8px;
 }
-.panel-header .close:hover { color: #1c1e21; }
-.panel-body { overflow-y: auto; padding: 14px; flex: 1; }
+.sidebar-header .close:hover { color: #1c1e21; }
+.sidebar-body { overflow-y: auto; padding: 13px; flex: 1; }
 
 .notice {
   background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
   border-radius: 10px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 10px;
 }
-.summary {
+.section {
   background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
   padding: 12px 14px; margin-bottom: 10px;
 }
-.summary h3 { margin: 0 0 6px; font-size: 13.5px; }
-.summary p { margin: 0; font-size: 13.5px; }
+.section h3 { margin: 0 0 8px; font-size: 13.5px; }
+.section p { margin: 0; font-size: 13.5px; }
 .hint { color: #6b7280; font-size: 12px; margin: 0 2px 10px; }
 
-.sentence-block {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-  padding: 11px 13px; margin-bottom: 9px; transition: border-color .15s, box-shadow .15s;
-}
-.sentence-block:hover { border-color: #2563eb; box-shadow: 0 4px 14px rgba(37,99,235,.12); }
-.sentence-original { color: #6b7280; font-size: 12px; margin-bottom: 7px; }
-.sentence-easy {
-  background: #eff6ff; border-radius: 9px; padding: 8px 11px; font-size: 13.5px;
-}
-.sentence-easy::before { content: "🐣 "; }
-.related-badge {
-  display: inline-block; margin-top: 8px; font-size: 11px; color: #6b7280;
-  background: #f3f4f6; border-radius: 999px; padding: 2px 9px;
-}
-
-.ticker { color: #2563eb; font-weight: 600; cursor: pointer; border-bottom: 1.5px solid rgba(37,99,235,.35); }
-.ticker:hover { background: #dbeafe; }
-.term { border-bottom: 1.5px dotted #b45309; color: #b45309; cursor: help; }
-
-.error-card {
-  background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
-  border-radius: 10px; padding: 11px 13px; font-size: 13px;
-}
-
-.popover {
-  position: fixed; z-index: 2147483630; width: 300px;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 8px;
-}
-.popover-title { font-size: 11.5px; font-weight: 700; color: #6b7280; padding: 2px 6px 7px; }
-.popover-loading, .popover-empty { padding: 8px; color: #6b7280; font-size: 12.5px; }
 .stock-row {
   display: grid; grid-template-columns: 1fr auto auto; align-items: center;
   gap: 9px; padding: 6px 7px; border-radius: 8px; cursor: pointer;
@@ -201,6 +186,45 @@ const CSS = `
 .stock-row .quote { text-align: right; font-size: 12.5px; white-space: nowrap; }
 .stock-row .quote .pct { display: block; font-size: 11.5px; }
 .up { color: #d93025; } .down { color: #1a73e8; } .flat { color: #6b7280; }
+.loading-line { color: #6b7280; font-size: 12.5px; padding: 4px 2px; }
+
+.sent-item {
+  padding: 8px 10px; border-radius: 9px; margin-bottom: 6px;
+  background: #eff6ff; font-size: 13px; cursor: pointer; line-height: 1.55;
+}
+.sent-item:hover { background: #dbeafe; }
+.sent-item.unmatched { background: #f3f4f6; cursor: default; }
+.sent-item .orig { display: block; color: #6b7280; font-size: 11.5px; margin-bottom: 3px; }
+.sent-item .badge {
+  display: inline-block; margin-top: 5px; font-size: 10.5px; color: #2563eb;
+  background: #fff; border-radius: 999px; padding: 1px 8px;
+}
+
+.term-item { padding: 6px 2px; border-bottom: 1px dashed #e5e7eb; font-size: 12.5px; }
+.term-item:last-child { border-bottom: none; }
+.term-item .t { font-weight: 700; color: #b45309; }
+.term-item .d { color: #6b7280; font-size: 11.5px; display: block; margin-top: 1px; }
+
+.error-card {
+  background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+  border-radius: 10px; padding: 11px 13px; font-size: 13px;
+}
+
+/* ------- 문장 호버 카드 (기사 본문 옆에 뜸) ------- */
+.card {
+  position: fixed; z-index: 2147483630; width: 340px; max-width: 94vw;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 11px 13px;
+  font-size: 13px; line-height: 1.6; color: #1c1e21;
+}
+.card .easy {
+  background: #eff6ff; border-radius: 9px; padding: 8px 11px; font-size: 13.5px; margin-bottom: 8px;
+}
+.card .easy::before { content: "🐣 "; }
+.card .card-sub { font-size: 11px; font-weight: 700; color: #6b7280; margin: 2px 2px 4px; }
+.card .ticker { color: #2563eb; font-weight: 600; cursor: pointer; border-bottom: 1.5px solid rgba(37,99,235,.35); }
+.card .ticker:hover { background: #dbeafe; }
+.card .term { border-bottom: 1.5px dotted #b45309; color: #b45309; cursor: help; }
 
 .tooltip {
   position: fixed; z-index: 2147483640; max-width: 290px;
@@ -212,6 +236,7 @@ const CSS = `
 .tooltip .tt-easy { display: block; margin-top: 1px; }
 .tooltip .tt-desc { display: block; margin-top: 5px; color: #d1d5db; font-size: 11.5px; }
 
+/* ------- 차트 모달 ------- */
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 2147483650;
   background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px;
@@ -252,14 +277,14 @@ const root = host.attachShadow({ mode: 'open' });
 root.innerHTML = `
   <style>${CSS}</style>
   <button class="fab" id="fab"><span>📰</span><span id="fab-label">쉬운말 번역</span></button>
-  <div class="panel" id="panel" hidden>
-    <div class="panel-header">
-      <span class="title">📰 주린이 번역</span>
-      <button class="close" id="panel-close" aria-label="닫기">✕</button>
+  <div class="sidebar" id="sidebar" hidden>
+    <div class="sidebar-header">
+      <span class="title">📰 주린이 번역 — 관련 정보</span>
+      <button class="close" id="sidebar-close" aria-label="닫기">✕</button>
     </div>
-    <div class="panel-body" id="panel-body"></div>
+    <div class="sidebar-body" id="sidebar-body"></div>
   </div>
-  <div class="popover" id="popover" hidden></div>
+  <div class="card" id="card" hidden></div>
   <div class="tooltip" id="tooltip" hidden></div>
   <div class="modal-backdrop" id="modal" hidden>
     <div class="modal">
@@ -295,46 +320,52 @@ root.innerHTML = `
 const $ = (sel) => root.querySelector(sel);
 const fab = $('#fab');
 const fabLabel = $('#fab-label');
-const panel = $('#panel');
-const panelBody = $('#panel-body');
-const popover = $('#popover');
+const sidebar = $('#sidebar');
+const sidebarBody = $('#sidebar-body');
+const card = $('#card');
 const tooltip = $('#tooltip');
 const modal = $('#modal');
 const chartCanvas = $('#chart-canvas');
 
 // ---------------------------------------------------------------------------
-// 플로팅 버튼 → 번역 실행/패널 토글
+// 상태
 // ---------------------------------------------------------------------------
 let translated = false;
 let translating = false;
+// sentIdx → { data: 문장 데이터, spans: 기사 본문에 달린 하이라이트 span 목록 }
+const sentMap = new Map();
 
+// ---------------------------------------------------------------------------
+// 플로팅 버튼 → 번역 실행 / 사이드바 토글
+// ---------------------------------------------------------------------------
 fab.addEventListener('click', async () => {
   if (translating) return;
   if (translated) {
-    panel.hidden = !panel.hidden;
+    sidebar.hidden = !sidebar.hidden;
     return;
   }
-  const text = extractArticleText();
+  const { text, container } = extractArticle();
   if (!text || text.length < 30) {
-    panel.hidden = false;
-    panelBody.innerHTML = `<div class="error-card">이 페이지에서 기사를 찾지 못했어요. 기사 본문 페이지에서 다시 시도해 주세요.</div>`;
+    sidebar.hidden = false;
+    sidebarBody.innerHTML = `<div class="error-card">이 페이지에서 기사를 찾지 못했어요. 기사 본문 페이지에서 다시 시도해 주세요.</div>`;
     return;
   }
 
   translating = true;
   fabLabel.innerHTML = `<span class="spin"></span>`;
   fab.querySelector('span').textContent = '번역 중…';
-  panel.hidden = false;
-  panelBody.innerHTML = `<div class="hint">기사를 쉬운 말로 바꾸는 중이에요… (문장 수에 따라 몇 초 걸려요)</div>`;
+  sidebar.hidden = false;
+  sidebarBody.innerHTML = `<div class="hint">기사를 쉬운 말로 바꾸는 중이에요… (문장 수에 따라 몇 초 걸려요)</div>`;
 
   try {
     const data = await api('/api/translate', 'POST', { text });
-    renderResult(data);
+    annotateArticle(container, data);
+    renderSidebar(data);
     translated = true;
     fab.querySelector('span').textContent = '📰';
-    fabLabel.textContent = '번역 결과 보기';
+    fabLabel.textContent = '관련 정보 열기/닫기';
   } catch (err) {
-    panelBody.innerHTML =
+    sidebarBody.innerHTML =
       `<div class="error-card">번역에 실패했어요: ${escapeHtml(err.message)}<br><br>` +
       `확장 아이콘(📰) 팝업의 ⚙️ 설정에서 API 주소를 확인해 주세요.</div>`;
     fab.querySelector('span').textContent = '📰';
@@ -344,15 +375,195 @@ fab.addEventListener('click', async () => {
   }
 });
 
-$('#panel-close').addEventListener('click', () => { panel.hidden = true; hidePopoverNow(); });
+$('#sidebar-close').addEventListener('click', () => { sidebar.hidden = true; });
 
 // ---------------------------------------------------------------------------
-// 결과 렌더링
+// 기사 본문에 하이라이트 달기
 // ---------------------------------------------------------------------------
+function collectTextNodes(container) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      const p = n.parentElement;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      const tag = p.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEXTAREA') {
+        return NodeFilter.FILTER_REJECT;
+      }
+      if (!n.textContent.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = [];
+  let node;
+  while ((node = walker.nextNode())) nodes.push(node);
+  return nodes;
+}
+
+// 문장을 컨테이너의 텍스트 노드들에서 찾아 <span class="jn-hl">로 감싼다.
+// 공백/줄바꿈 차이는 무시하도록 토큰 사이를 \s+로 잇는다.
+function wrapSentence(container, sentence, idx) {
+  const nodes = collectTextNodes(container);
+  let full = '';
+  const offsets = [];
+  for (const n of nodes) { offsets.push(full.length); full += n.textContent; }
+
+  const tokens = sentence.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  const re = new RegExp(tokens.map(escapeRegex).join('[\\s\\u00a0]+'));
+  const m = re.exec(full);
+  if (!m) return [];
+
+  const start = m.index;
+  const end = m.index + m[0].length;
+  const spans = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const nStart = offsets[i];
+    const nEnd = nStart + nodes[i].textContent.length;
+    if (nEnd <= start || nStart >= end) continue;
+    if (nodes[i].parentElement.closest('.jn-hl')) continue; // 이미 감싼 곳은 건너뜀
+
+    const localStart = Math.max(0, start - nStart);
+    const localEnd = Math.min(nodes[i].textContent.length, end - nStart);
+    let target = nodes[i];
+    if (localStart > 0) target = target.splitText(localStart);
+    if (localEnd - localStart < target.textContent.length) target.splitText(localEnd - localStart);
+
+    const span = document.createElement('span');
+    span.className = 'jn-hl';
+    span.dataset.jnIdx = idx;
+    target.parentNode.insertBefore(span, target);
+    span.appendChild(target);
+    spans.push(span);
+  }
+  return spans;
+}
+
+// 하이라이트 span 내부에서 특정 문구를 찾아 종목/용어 span으로 한 번 더 감싼다.
+function wrapInline(spanEl, matchText, className, dataset) {
+  for (const tn of [...spanEl.childNodes]) {
+    if (tn.nodeType !== Node.TEXT_NODE) continue;
+    const i = tn.textContent.indexOf(matchText);
+    if (i === -1) continue;
+    let target = tn;
+    if (i > 0) target = target.splitText(i);
+    if (matchText.length < target.textContent.length) target.splitText(matchText.length);
+    const el = document.createElement('span');
+    el.className = className;
+    for (const [k, v] of Object.entries(dataset)) el.dataset[k] = v;
+    target.parentNode.insertBefore(el, target);
+    el.appendChild(target);
+    return true;
+  }
+  return false;
+}
+
+function annotateArticle(container, data) {
+  data.sentences.forEach((s, idx) => {
+    // 컨테이너에서 먼저 찾고, 못 찾으면(예: 제목) 문서 전체에서 한 번 더 찾는다.
+    let spans = wrapSentence(container, s.original, idx);
+    if (!spans.length && container !== document.body) {
+      spans = wrapSentence(document.body, s.original, idx);
+    }
+    sentMap.set(idx, { data: s, spans });
+
+    // 문장 안의 종목명·용어에도 표시를 단다.
+    for (const span of spans) {
+      for (const m of s.mentions || []) {
+        wrapInline(span, m.text, 'jn-ticker', { jnCode: m.code });
+      }
+      for (const t of s.terms || []) {
+        wrapInline(span, t.term, 'jn-term', {
+          jnTerm: t.term, jnEasy: t.easy, jnDesc: t.desc,
+        });
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 기사 위 상호작용 (페이지 DOM 이벤트 위임)
+// ---------------------------------------------------------------------------
+document.addEventListener('mouseover', (e) => {
+  const t = e.target;
+  if (!(t instanceof Element)) return;
+  const term = t.closest('.jn-term');
+  if (term) {
+    showTooltip(term, term.dataset.jnTerm, term.dataset.jnEasy, term.dataset.jnDesc);
+    return;
+  }
+  const hl = t.closest('.jn-hl');
+  if (hl) scheduleCard(hl);
+});
+
+document.addEventListener('mouseout', (e) => {
+  const t = e.target;
+  if (!(t instanceof Element)) return;
+  if (t.closest('.jn-term')) tooltip.hidden = true;
+  if (t.closest('.jn-hl')) scheduleHideCard();
+});
+
+// 종목명 클릭 → 차트 (사이트 자체 링크보다 먼저 잡도록 캡처 단계 사용)
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (!(t instanceof Element)) return;
+  const tk = t.closest('.jn-ticker');
+  if (tk && tk.dataset.jnCode) {
+    e.preventDefault();
+    e.stopPropagation();
+    hideCardNow();
+    openChart(tk.dataset.jnCode);
+  }
+}, true);
+
+// ---------------------------------------------------------------------------
+// 문장 호버 카드 — 쉬운 번역 + 관련 종목
+// ---------------------------------------------------------------------------
+let cardShowTimer = null, cardHideTimer = null, cardToken = 0, activeIdx = -1;
+const quoteCache = new Map();
+
+function getQuote(code) {
+  if (!quoteCache.has(code)) {
+    quoteCache.set(code, api(`/api/stocks/${code}`).catch((e) => {
+      quoteCache.delete(code);
+      throw e;
+    }));
+  }
+  return quoteCache.get(code);
+}
+
+card.addEventListener('mouseenter', () => clearTimeout(cardHideTimer));
+card.addEventListener('mouseleave', scheduleHideCard);
+
+function scheduleCard(hl) {
+  clearTimeout(cardHideTimer);
+  const idx = Number(hl.dataset.jnIdx);
+  if (idx === activeIdx && !card.hidden) return;
+  clearTimeout(cardShowTimer);
+  cardShowTimer = setTimeout(() => showCard(idx, hl), 180);
+}
+function scheduleHideCard() {
+  clearTimeout(cardShowTimer);
+  clearTimeout(cardHideTimer);
+  cardHideTimer = setTimeout(hideCardNow, 260);
+}
+function hideCardNow() {
+  card.hidden = true;
+  setActiveSentence(-1);
+}
+function setActiveSentence(idx) {
+  if (activeIdx >= 0 && sentMap.has(activeIdx)) {
+    for (const s of sentMap.get(activeIdx).spans) s.classList.remove('jn-active');
+  }
+  activeIdx = idx;
+  if (idx >= 0 && sentMap.has(idx)) {
+    for (const s of sentMap.get(idx).spans) s.classList.add('jn-active');
+  }
+}
+
 function decorateText(text, mentions, terms) {
   const pats = [];
-  for (const m of mentions) pats.push({ t: m.text, type: 'ticker', data: m });
-  for (const t of terms) pats.push({ t: t.term, type: 'term', data: t });
+  for (const m of mentions || []) pats.push({ t: m.text, type: 'ticker', data: m });
+  for (const t of terms || []) pats.push({ t: t.term, type: 'term', data: t });
   pats.sort((a, b) => b.t.length - a.t.length);
   if (!pats.length) return escapeHtml(text);
 
@@ -372,117 +583,193 @@ function decorateText(text, mentions, terms) {
   return out;
 }
 
-function renderResult(data) {
-  let html = '';
-  if (data.notice) html += `<div class="notice">${escapeHtml(data.notice)}</div>`;
-  if (data.summary) html += `<div class="summary"><h3>📌 세 줄 요약</h3><p>${escapeHtml(data.summary)}</p></div>`;
-  html += `<div class="hint">💡 문장에 마우스를 올리면 관련 종목이, <span class="ticker">파란 종목명</span>을 클릭하면 차트가 떠요.</div>`;
-  panelBody.innerHTML = html;
+async function showCard(idx, anchorEl) {
+  const entry = sentMap.get(idx);
+  if (!entry) return;
+  const token = ++cardToken;
+  setActiveSentence(idx);
 
-  for (const s of data.sentences) {
-    const block = document.createElement('div');
-    block.className = 'sentence-block';
-    block._related = s.related || [];
-    let inner = `<div class="sentence-original">${decorateText(s.original, s.mentions, s.terms)}</div>`;
-    inner += `<div class="sentence-easy">${decorateText(s.easy, s.mentions, [])}</div>`;
-    if (block._related.length) {
-      inner += `<span class="related-badge">📈 관련 종목 ${block._related.length}개 — 마우스를 올려보세요</span>`;
-    }
-    block.innerHTML = inner;
-    block.addEventListener('mouseenter', () => schedulePopover(block));
-    block.addEventListener('mouseleave', scheduleHidePopover);
-    panelBody.appendChild(block);
+  const s = entry.data;
+  let html = `<div class="easy">${decorateText(s.easy, s.mentions, s.terms)}</div>`;
+  const related = s.related || [];
+  if (related.length) {
+    html += `<div class="card-sub">📈 관련 종목 — 누르면 차트가 열려요</div>`;
+    html += `<div class="card-stocks"><div class="loading-line">시세를 불러오는 중…</div></div>`;
   }
-}
+  card.innerHTML = html;
+  card.hidden = false;
+  positionCard(anchorEl);
 
-// ---------------------------------------------------------------------------
-// 관련 종목 팝오버
-// ---------------------------------------------------------------------------
-let popShowTimer = null, popHideTimer = null, popToken = 0;
-const quoteCache = new Map();
-
-function getQuote(code) {
-  if (!quoteCache.has(code)) {
-    quoteCache.set(code, api(`/api/stocks/${code}`).catch((e) => {
-      quoteCache.delete(code);
-      throw e;
-    }));
-  }
-  return quoteCache.get(code);
-}
-
-popover.addEventListener('mouseenter', () => clearTimeout(popHideTimer));
-popover.addEventListener('mouseleave', scheduleHidePopover);
-
-function schedulePopover(block) {
-  clearTimeout(popShowTimer);
-  clearTimeout(popHideTimer);
-  if (!block._related.length) return;
-  popShowTimer = setTimeout(() => showPopover(block), 200);
-}
-function scheduleHidePopover() {
-  clearTimeout(popShowTimer);
-  clearTimeout(popHideTimer);
-  popHideTimer = setTimeout(hidePopoverNow, 250);
-}
-function hidePopoverNow() { popover.hidden = true; }
-
-async function showPopover(block) {
-  const token = ++popToken;
-  popover.innerHTML =
-    `<div class="popover-title">📈 이 문장과 관련된 종목</div>` +
-    `<div class="popover-loading">시세를 불러오는 중…</div>`;
-  popover.hidden = false;
-  positionPopover(block);
-
-  const quotes = await Promise.all(block._related.map((r) =>
+  if (!related.length) return;
+  const quotes = await Promise.all(related.map((r) =>
     getQuote(r.code).then((q) => ({ ...q, reason: r.reason })).catch(() => null)
   ));
-  if (token !== popToken || popover.hidden) return;
+  if (token !== cardToken || card.hidden) return;
 
   const rows = quotes.filter(Boolean);
+  const wrap = card.querySelector('.card-stocks');
+  if (!wrap) return;
   if (!rows.length) {
-    popover.innerHTML = `<div class="popover-empty">시세를 불러오지 못했어요.</div>`;
+    wrap.innerHTML = `<div class="loading-line">시세를 불러오지 못했어요.</div>`;
     return;
   }
+  wrap.innerHTML = rows.map((q) => `
+    <div class="stock-row" data-code="${q.code}">
+      <div>
+        <div class="name">${escapeHtml(q.name)}</div>
+        <div class="reason">${escapeHtml(q.reason)} · ${q.code}</div>
+      </div>
+      <canvas class="spark" width="60" height="24" data-spark="${q.spark.join(',')}" data-dir="${changeClass(q.change)}"></canvas>
+      <div class="quote ${changeClass(q.change)}">
+        ${fmtPrice(q.price)}
+        <span class="pct">${changeSign(q.change)} ${Math.abs(q.change_pct)}%</span>
+      </div>
+    </div>`).join('');
+  wrap.querySelectorAll('canvas.spark').forEach(drawSparkline);
+  positionCard(anchorEl);
+}
 
-  popover.innerHTML =
-    `<div class="popover-title">📈 관련 종목 — 누르면 차트가 열려요</div>` +
-    rows.map((q) => `
-      <div class="stock-row" data-code="${q.code}">
-        <div>
-          <div class="name">${escapeHtml(q.name)}</div>
-          <div class="reason">${escapeHtml(q.reason)} · ${q.code}</div>
-        </div>
-        <canvas class="spark" width="60" height="24" data-spark="${q.spark.join(',')}" data-dir="${changeClass(q.change)}"></canvas>
-        <div class="quote ${changeClass(q.change)}">
-          ${fmtPrice(q.price)}
-          <span class="pct">${changeSign(q.change)} ${Math.abs(q.change_pct)}%</span>
-        </div>
-      </div>`).join('');
+function positionCard(anchorEl) {
+  const rect = anchorEl.getBoundingClientRect();
+  const cardW = card.offsetWidth || 340;
+  const cardH = card.offsetHeight || 160;
+  let left = Math.min(rect.left, window.innerWidth - cardW - 12);
+  left = Math.max(8, left);
+  let top = rect.bottom + 8;
+  if (top + cardH + 10 > window.innerHeight) top = rect.top - cardH - 8;
+  card.style.left = `${left}px`;
+  card.style.top = `${Math.max(8, top)}px`;
+}
 
-  popover.querySelectorAll('canvas.spark').forEach(drawSparkline);
-  popover.querySelectorAll('.stock-row').forEach((row) => {
-    row.addEventListener('click', () => {
-      hidePopoverNow();
-      openChart(row.dataset.code);
-    });
+// 카드 내부의 종목/용어 (Shadow DOM 이벤트 위임)
+card.addEventListener('click', (e) => {
+  const row = e.target.closest && e.target.closest('.stock-row');
+  if (row && row.dataset.code) { hideCardNow(); openChart(row.dataset.code); return; }
+  const ticker = e.target.closest && e.target.closest('.ticker');
+  if (ticker && ticker.dataset.code) { hideCardNow(); openChart(ticker.dataset.code); }
+});
+card.addEventListener('mouseover', (e) => {
+  const term = e.target.closest && e.target.closest('.term');
+  if (term) showTooltip(term, term.dataset.term, term.dataset.easy, term.dataset.desc);
+});
+card.addEventListener('mouseout', (e) => {
+  if (e.target.closest && e.target.closest('.term')) tooltip.hidden = true;
+});
+
+// ---------------------------------------------------------------------------
+// 용어 툴팁 (기사·카드·사이드바 공용)
+// ---------------------------------------------------------------------------
+function showTooltip(anchorEl, term, easy, desc) {
+  tooltip.innerHTML =
+    `<span class="tt-term">${escapeHtml(term)}</span>` +
+    `<span class="tt-easy">= ${escapeHtml(easy)}</span>` +
+    `<span class="tt-desc">${escapeHtml(desc)}</span>`;
+  tooltip.hidden = false;
+  const rect = anchorEl.getBoundingClientRect();
+  const ttW = tooltip.offsetWidth;
+  const left = Math.min(rect.left, window.innerWidth - ttW - 8);
+  tooltip.style.left = `${Math.max(8, left)}px`;
+  tooltip.style.top = `${rect.bottom + 6}px`;
+}
+
+// ---------------------------------------------------------------------------
+// 우측 사이드바 — 요약 · 관련 종목 전체 · 문장 목록 · 용어 사전
+// ---------------------------------------------------------------------------
+async function renderSidebar(data) {
+  let html = '';
+  if (data.notice) html += `<div class="notice">${escapeHtml(data.notice)}</div>`;
+  if (data.summary) html += `<div class="section"><h3>📌 세 줄 요약</h3><p>${escapeHtml(data.summary)}</p></div>`;
+  html += `<div class="hint">💡 기사 본문의 <u>파란 밑줄 문장</u>에 마우스를 올려보세요. 쉬운 번역과 관련 종목이 바로 옆에 떠요.</div>`;
+
+  // 기사 전체에서 언급된 관련 종목 (중복 제거)
+  const agg = new Map();
+  for (const s of data.sentences) {
+    for (const r of s.related || []) {
+      if (!agg.has(r.code)) agg.set(r.code, r);
+    }
+  }
+  if (agg.size) {
+    html += `<div class="section"><h3>📈 이 기사의 관련 종목</h3><div id="sb-stocks"><div class="loading-line">시세를 불러오는 중…</div></div></div>`;
+  }
+
+  // 문장별 쉬운 번역 목록 (클릭하면 해당 문장으로 스크롤)
+  html += `<div class="section"><h3>🐣 문장별 쉬운 말</h3><div id="sb-sents">`;
+  data.sentences.forEach((s, idx) => {
+    const entry = sentMap.get(idx);
+    const matched = entry && entry.spans.length > 0;
+    const badge = (s.related || []).length
+      ? `<span class="badge">📈 관련 종목 ${s.related.length}개</span>` : '';
+    if (matched) {
+      html += `<div class="sent-item" data-idx="${idx}" title="누르면 기사에서 이 문장을 찾아가요">${escapeHtml(s.easy)}${badge}</div>`;
+    } else {
+      html += `<div class="sent-item unmatched"><span class="orig">${escapeHtml(s.original)}</span>${escapeHtml(s.easy)}${badge}</div>`;
+    }
   });
-  positionPopover(block);
+  html += `</div></div>`;
+
+  // 용어 사전 (중복 제거)
+  const terms = new Map();
+  for (const s of data.sentences) {
+    for (const t of s.terms || []) if (!terms.has(t.term)) terms.set(t.term, t);
+  }
+  if (terms.size) {
+    html += `<div class="section"><h3>📖 어려운 용어 풀이</h3>`;
+    for (const t of terms.values()) {
+      html += `<div class="term-item"><span class="t">${escapeHtml(t.term)}</span> = ${escapeHtml(t.easy)}<span class="d">${escapeHtml(t.desc)}</span></div>`;
+    }
+    html += `</div>`;
+  }
+  sidebarBody.innerHTML = html;
+
+  // 관련 종목 시세 채우기
+  if (agg.size) {
+    const quotes = await Promise.all([...agg.values()].map((r) =>
+      getQuote(r.code).then((q) => ({ ...q, reason: r.reason })).catch(() => null)
+    ));
+    const wrap = sidebarBody.querySelector('#sb-stocks');
+    if (!wrap) return;
+    const rows = quotes.filter(Boolean);
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="loading-line">시세를 불러오지 못했어요.</div>`;
+    } else {
+      wrap.innerHTML = rows.map((q) => `
+        <div class="stock-row" data-code="${q.code}">
+          <div>
+            <div class="name">${escapeHtml(q.name)}</div>
+            <div class="reason">${escapeHtml(q.reason)} · ${q.code}</div>
+          </div>
+          <canvas class="spark" width="60" height="24" data-spark="${q.spark.join(',')}" data-dir="${changeClass(q.change)}"></canvas>
+          <div class="quote ${changeClass(q.change)}">
+            ${fmtPrice(q.price)}
+            <span class="pct">${changeSign(q.change)} ${Math.abs(q.change_pct)}%</span>
+          </div>
+        </div>`).join('');
+      wrap.querySelectorAll('canvas.spark').forEach(drawSparkline);
+    }
+  }
 }
 
-function positionPopover(block) {
-  const rect = block.getBoundingClientRect();
-  const popW = popover.offsetWidth || 300;
-  const popH = popover.offsetHeight || 180;
-  let left = Math.min(rect.left, window.innerWidth - popW - 10);
-  left = Math.max(8, left - popW * 0.2);
-  let top = rect.bottom + 6;
-  if (top + popH + 10 > window.innerHeight) top = rect.top - popH - 6;
-  popover.style.left = `${left}px`;
-  popover.style.top = `${Math.max(8, top)}px`;
-}
+sidebarBody.addEventListener('click', (e) => {
+  const row = e.target.closest && e.target.closest('.stock-row');
+  if (row && row.dataset.code) { openChart(row.dataset.code); return; }
+  const item = e.target.closest && e.target.closest('.sent-item[data-idx]');
+  if (item) {
+    const entry = sentMap.get(Number(item.dataset.idx));
+    if (entry && entry.spans.length) {
+      const span = entry.spans[0];
+      span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      for (const s of entry.spans) {
+        s.classList.remove('jn-flash');
+        void s.offsetWidth; // 애니메이션 재시작
+        s.classList.add('jn-flash');
+      }
+    }
+  }
+});
 
+// ---------------------------------------------------------------------------
+// 스파크라인
+// ---------------------------------------------------------------------------
 function drawSparkline(canvas) {
   const values = canvas.dataset.spark.split(',').map(Number);
   const dir = canvas.dataset.dir;
@@ -506,31 +793,6 @@ function drawSparkline(canvas) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 }
-
-// ---------------------------------------------------------------------------
-// 용어 툴팁 / 티커 클릭 (패널 내부 이벤트 위임)
-// ---------------------------------------------------------------------------
-panelBody.addEventListener('mouseover', (e) => {
-  const term = e.target.closest && e.target.closest('.term');
-  if (!term) return;
-  tooltip.innerHTML =
-    `<span class="tt-term">${escapeHtml(term.dataset.term)}</span>` +
-    `<span class="tt-easy">= ${escapeHtml(term.dataset.easy)}</span>` +
-    `<span class="tt-desc">${escapeHtml(term.dataset.desc)}</span>`;
-  tooltip.hidden = false;
-  const rect = term.getBoundingClientRect();
-  const ttW = tooltip.offsetWidth;
-  let left = Math.min(rect.left, window.innerWidth - ttW - 8);
-  tooltip.style.left = `${Math.max(8, left)}px`;
-  tooltip.style.top = `${rect.bottom + 6}px`;
-});
-panelBody.addEventListener('mouseout', (e) => {
-  if (e.target.closest && e.target.closest('.term')) tooltip.hidden = true;
-});
-panelBody.addEventListener('click', (e) => {
-  const ticker = e.target.closest && e.target.closest('.ticker');
-  if (ticker && ticker.dataset.code) openChart(ticker.dataset.code);
-});
 
 // ---------------------------------------------------------------------------
 // 차트 모달

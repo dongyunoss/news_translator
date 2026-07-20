@@ -19,9 +19,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true, data });
       }
     } catch (e) {
+      const { apiUrl } = await chrome.storage.local.get(['apiUrl']).catch(() => ({}));
+      const base = (apiUrl || 'http://localhost:8000').replace(/\/+$/, '');
       sendResponse({
         ok: false,
-        error: '서버에 연결하지 못했어요. 백엔드(python run.py)가 실행 중인지 확인해 주세요.',
+        error: `서버(${base})에 연결하지 못했어요. 백엔드(python run.py)가 실행 중인지, 팝업 ⚙️ 설정의 API 주소가 맞는지 확인해 주세요.`,
       });
     }
   })();
