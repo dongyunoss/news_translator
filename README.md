@@ -5,7 +5,7 @@
 ## 주요 기능
 
 1. **쉬운 말 번역** — 기사를 붙여넣으면 문장별로 쉬운 한국어 해설과 세 줄 요약을 보여줍니다.
-   - Claude API(`claude-opus-4-8`)를 사용해 자연스러운 번역을 생성합니다.
+   - OpenAI GPT(`gpt-4o-mini`)를 사용해 자연스러운 번역을 생성합니다.
    - API 키가 없으면 내장 경제 용어사전(45개 용어) 기반 간이 번역으로 자동 폴백합니다.
 2. **문장 호버 → 관련 종목 동향** — 문장에 마우스를 올리면 그 문장과 관련된 종목 리스트가 팝오버로 뜨고, 현재가·등락률·최근 30일 스파크라인을 보여줍니다.
    - 기사에 직접 언급된 종목 + 섹터 키워드(반도체, 2차전지, 방산 등 17개 섹터) 기반 관련주를 매칭합니다.
@@ -17,12 +17,17 @@
 ```bash
 pip install -r requirements.txt
 
-# (선택) Claude 번역을 사용하려면
-export ANTHROPIC_API_KEY=sk-ant-...
+# (필수) OpenAI API 키 설정
+export OPENAI_API_KEY=sk-...
 
 python run.py
 # → http://localhost:8000
 ```
+
+**API 키 발급:**
+- [OpenAI Platform](https://platform.openai.com/account/api-keys)에서 발급
+- `gpt-4o-mini` 사용 (저렴하고 빠름)
+- 키가 없으면 내장 용어사전으로 자동 폴백
 
 ## 시세 데이터
 
@@ -42,11 +47,17 @@ python run.py
 ```
 app/
 ├── main.py        # FastAPI 앱 + 정적 파일 서빙
-├── translator.py  # Claude 번역 + 용어사전 폴백
+├── translator.py  # OpenAI GPT 번역 + 용어사전 폴백
 ├── stocks.py      # 종목/섹터 매칭, 시세(라이브→모의 폴백)
 └── data/
     ├── stocks.json    # 종목 유니버스(44종목) + 섹터 키워드
     └── glossary.json  # 경제 용어사전(45개)
+extension/
+├── manifest.json      # Chrome/Edge 확장 설정
+├── background.js      # API 프록시 (CORS 우회)
+├── content_script.js  # 기사 위 직접 상호작용 (핵심)
+├── popup.html/js/css  # 팝업 UI (수동 입력용)
+└── README.md
 static/
 ├── index.html
 ├── style.css

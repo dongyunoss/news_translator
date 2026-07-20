@@ -1,12 +1,13 @@
 """뉴스 기사를 주식 초보자('주린이') 눈높이의 쉬운 문장으로 번역한다.
 
-Claude API(claude-opus-4-8, structured outputs)를 우선 사용하고,
+OpenAI GPT API(gpt-4o-mini)를 우선 사용하고,
 API 키가 없거나 호출에 실패하면 내장 경제 용어사전 기반 주석 번역으로 폴백한다.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from pathlib import Path
@@ -17,7 +18,6 @@ GLOSSARY: list[dict] = json.loads(
     (Path(__file__).parent / "data" / "glossary.json").read_text(encoding="utf-8")
 )
 
-# 긴 변형 우선 매칭 (예: "매파적"이 "매파"보다 먼저)
 _TERM_INDEX: list[tuple[str, dict]] = sorted(
     ((v, entry) for entry in GLOSSARY for v in entry["variants"]),
     key=lambda x: -len(x[0]),
@@ -29,7 +29,7 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 _client = None
 _client_lock = threading.Lock()
-_claude_disabled = False
+_gpt_disabled = False
 
 _SYSTEM_PROMPT = """\
 너는 주식을 처음 시작한 초보 투자자('주린이')를 위한 경제 뉴스 해설가야.
@@ -40,25 +40,16 @@ _SYSTEM_PROMPT = """\
 - 전문 용어는 일상적인 말로 풀어 쓰되, 핵심 의미가 사라지면 안 돼.
 - 친근한 해요체를 사용해. (예: "~라는 뜻이에요", "~하고 있어요")
 - 각 문장의 쉬운 번역은 원문보다 크게 길어지지 않게 해.
-- summary에는 기사 전체를 주린이가 이해할 수 있게 2~3문장으로 요약해."""
+- summary에는 기사 전체를 주린이가 이해할 수 있게 2~3문장으로 요약해.
 
-_OUTPUT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "summary": {"type": "string"},
-        "sentences": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {"easy": {"type": "string"}},
-                "required": ["easy"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["summary", "sentences"],
-    "additionalProperties": False,
-}
+응답은 반드시 다음 JSON 형식으로 해:
+{
+  "summary": "기사 요약",
+  "sentences": [
+    {"easy": "첫 번째 문장의 쉬운 번역"},
+    {"easy": "두 번째 문장의 쉬운 번역"}
+  ]
+}"""
 
 
 def split_sentences(text: str) -> list[str]:
@@ -73,7 +64,6 @@ def find_terms(sentence: str) -> list[dict]:
     for variant, entry in _TERM_INDEX:
         if id(entry) in seen_ids:
             continue
-        # 제외 문맥(예: "상향 조정"의 "조정")을 지운 뒤에도 남아 있어야 매칭
         haystack = sentence
         for ex in entry.get("exclude", []):
             haystack = haystack.replace(ex, "")
@@ -97,39 +87,39 @@ def _get_client():
     global _client
     with _client_lock:
         if _client is None:
-            from anthropic import Anthropic
-
-            _client = Anthropic(max_retries=1)
+            from openai import OpenAI
+            _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         return _client
 
 
-def _claude_translate(sentences: list[str]) -> tuple[list[str], str]:
-    """Claude로 문장별 쉬운 번역 + 요약을 생성한다. 실패 시 예외."""
+def _gpt_translate(sentences: list[str]) -> tuple[list[str], str]:
+    """GPT로 문장별 쉬운 번역 + 요약을 생성한다. 실패 시 예외."""
     numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
-    resp = _get_client().messages.create(
-        model="claude-opus-4-8",
-        max_tokens=16000,
-        thinking={"type": "adaptive"},
-        system=_SYSTEM_PROMPT,
-        output_config={"format": {"type": "json_schema", "schema": _OUTPUT_SCHEMA}},
+
+    resp = _get_client().chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.3,
+        response_format={"type": "json_object"},
         messages=[
+            {"role": "system", "content": _SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": f"다음 경제 뉴스 문장들을 번역해줘. 총 {len(sentences)}문장이야.\n\n{numbered}",
             }
         ],
     )
-    text = next(b.text for b in resp.content if b.type == "text")
+
+    text = resp.choices[0].message.content
     data = json.loads(text)
     easy = [s["easy"] for s in data["sentences"]]
-    # 개수가 어긋나면 부족분은 원문으로 채우고 초과분은 버린다.
+
     if len(easy) < len(sentences):
         easy += sentences[len(easy):]
     return easy[: len(sentences)], data["summary"]
 
 
 def translate_article(text: str) -> dict:
-    global _claude_disabled
+    global _gpt_disabled
 
     text = text.strip()[:MAX_ARTICLE_CHARS]
     sentences = split_sentences(text)
@@ -143,22 +133,21 @@ def translate_article(text: str) -> dict:
     easy_list: list[str] | None = None
     source = "glossary"
 
-    if not _claude_disabled:
+    if not _gpt_disabled:
         try:
-            easy_list, summary = _claude_translate(sentences)
-            source = "claude"
-        except Exception as exc:  # 인증 실패·네트워크 오류 등 → 폴백
-            from anthropic import AuthenticationError
-
+            easy_list, summary = _gpt_translate(sentences)
+            source = "gpt"
+        except Exception as exc:
+            from openai import AuthenticationError
             if isinstance(exc, AuthenticationError):
-                _claude_disabled = True
+                _gpt_disabled = True
             easy_list = None
 
     if easy_list is None:
         easy_list = [_fallback_easy(s, t) for s, t in zip(sentences, per_terms)]
         notice = (
-            "Claude API를 사용할 수 없어 내장 용어사전 기반 간이 번역으로 보여주고 있어요. "
-            "ANTHROPIC_API_KEY를 설정하면 문장 전체를 자연스러운 쉬운 말로 번역해 드려요."
+            "OpenAI API를 사용할 수 없어 내장 용어사전 기반 간이 번역으로 보여주고 있어요. "
+            "OPENAI_API_KEY를 설정하면 문장 전체를 자연스러운 쉬운 말로 번역해 드려요."
         )
 
     result_sentences = []
