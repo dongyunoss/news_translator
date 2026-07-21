@@ -119,6 +119,45 @@ main {
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12);
 }
 .sentence-block.hard { border-left: 4px solid #ea580c; }
+
+/* 관련 금융상품 행 */
+.product-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.product-row:hover { background: #f0fdf4; }
+.product-row .name { font-weight: 600; font-size: 13px; }
+.product-row .reason { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.type-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: 1px;
+  background: #ecfdf5;
+  color: #047857;
+}
+.type-chip.fund { background: #eef2ff; color: #4338ca; }
+.prod-meta { text-align: right; white-space: nowrap; }
+.risk-chip {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+.risk-chip.low { background: #ecfdf5; color: #047857; }
+.risk-chip.mid { background: #fffbeb; color: #b45309; }
+.risk-chip.high { background: #fef2f2; color: #b91c1c; }
+.prod-expense { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.disclaimer { font-size: 11px; color: #9ca3af; margin: 6px 4px 2px; }
 .hard-chip {
   display: inline-block;
   background: #fff7ed;

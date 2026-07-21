@@ -135,6 +135,7 @@ function renderResult(data) {
     const block = document.createElement("div");
     block.className = "sentence-block" + (s.hard ? " hard" : "");
     block._related = s.related;
+    block._products = s.products || [];
 
     let html = "";
     if (s.hard) html += `<span class="hard-chip">🔥 특히 어려운 문장</span>`;
@@ -178,7 +179,8 @@ popover.addEventListener("mouseleave", scheduleHidePopover);
 function schedulePopover(block) {
   clearTimeout(popShowTimer);
   clearTimeout(popHideTimer);
-  if (!block._related || !block._related.length) return;
+  const hasContent = (block._related && block._related.length) || (block._products && block._products.length);
+  if (!hasContent) return;
   popShowTimer = setTimeout(() => showPopover(block), 220);
 }
 
@@ -188,9 +190,32 @@ function scheduleHidePopover() {
   popHideTimer = setTimeout(() => { popover.hidden = true; }, 250);
 }
 
+function riskClass(risk) { return risk <= 2 ? "low" : risk <= 4 ? "mid" : "high"; }
+
+function productsHtml(products) {
+  if (!products.length) return "";
+  return (
+    `<div class="popover-title">🧺 관련 금융상품 (ETF·펀드)</div>` +
+    products.map((p) => `
+      <div class="product-row" data-code="${escapeHtml(p.code)}" title="${escapeHtml(p.desc)}">
+        <div>
+          <div class="name">${escapeHtml(p.name)}
+            <span class="type-chip${p.type === "펀드" ? " fund" : ""}">${escapeHtml(p.type)}</span></div>
+          <div class="reason">${escapeHtml(p.reason)} · ${escapeHtml(p.asset)}</div>
+        </div>
+        <div class="prod-meta">
+          <span class="risk-chip ${riskClass(p.risk)}">위험 ${p.risk}등급</span>
+          <span class="prod-expense">연보수 ${p.expense}%</span>
+        </div>
+      </div>`).join("") +
+    `<div class="disclaimer">※ 투자 권유가 아닌 참고 정보예요.</div>`
+  );
+}
+
 async function showPopover(block) {
   const token = ++popToken;
-  const related = block._related;
+  const related = block._related || [];
+  const products = block._products || [];
 
   popover.innerHTML =
     `<div class="popover-title">📈 이 문장과 관련된 종목</div>` +
@@ -209,28 +234,33 @@ async function showPopover(block) {
   if (token !== popToken || popover.hidden) return;
 
   const rows = quotes.filter(Boolean);
-  if (!rows.length) {
+  if (!rows.length && !products.length) {
     popover.innerHTML = `<div class="popover-empty">시세를 불러오지 못했어요.</div>`;
     return;
   }
 
-  popover.innerHTML =
-    `<div class="popover-title">📈 이 문장과 관련된 종목 — 누르면 차트가 열려요</div>` +
-    rows.map((q) => `
-      <div class="stock-row" data-code="${q.code}">
-        <div>
-          <div class="name">${escapeHtml(q.name)}</div>
-          <div class="reason">${escapeHtml(q.reason)} · ${q.code}</div>
-        </div>
-        <canvas class="spark" width="64" height="26" data-spark="${q.spark.join(",")}" data-dir="${changeClass(q.change)}"></canvas>
-        <div class="quote ${changeClass(q.change)}">
-          ${fmtPrice(q.price)}
-          <span class="pct">${changeSign(q.change)} ${Math.abs(q.change_pct)}%</span>
-        </div>
-      </div>`).join("");
+  let html = "";
+  if (rows.length) {
+    html +=
+      `<div class="popover-title">📈 이 문장과 관련된 종목 — 누르면 차트가 열려요</div>` +
+      rows.map((q) => `
+        <div class="stock-row" data-code="${q.code}">
+          <div>
+            <div class="name">${escapeHtml(q.name)}</div>
+            <div class="reason">${escapeHtml(q.reason)} · ${q.code}</div>
+          </div>
+          <canvas class="spark" width="64" height="26" data-spark="${q.spark.join(",")}" data-dir="${changeClass(q.change)}"></canvas>
+          <div class="quote ${changeClass(q.change)}">
+            ${fmtPrice(q.price)}
+            <span class="pct">${changeSign(q.change)} ${Math.abs(q.change_pct)}%</span>
+          </div>
+        </div>`).join("");
+  }
+  html += productsHtml(products);
+  popover.innerHTML = html;
 
   popover.querySelectorAll("canvas.spark").forEach(drawSparkline);
-  popover.querySelectorAll(".stock-row").forEach((row) => {
+  popover.querySelectorAll(".stock-row, .product-row").forEach((row) => {
     row.addEventListener("click", () => {
       popover.hidden = true;
       openChart(row.dataset.code);

@@ -194,6 +194,31 @@ const CSS = `
 .up { color: #d93025; } .down { color: #1a73e8; } .flat { color: #6b7280; }
 .loading-line { color: #6b7280; font-size: 12.5px; padding: 4px 2px; }
 
+/* 관련 금융상품 (ETF·펀드) */
+.product-row {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: 9px; padding: 7px 7px; border-radius: 8px; cursor: pointer;
+}
+.product-row:hover { background: #f0fdf4; }
+.product-row .name { font-weight: 600; font-size: 12.5px; }
+.product-row .reason { font-size: 10.5px; color: #6b7280; margin-top: 1px; }
+.type-chip {
+  display: inline-block; font-size: 9.5px; font-weight: 700; border-radius: 4px;
+  padding: 1px 5px; margin-left: 4px; vertical-align: 1px;
+  background: #ecfdf5; color: #047857;
+}
+.type-chip.fund { background: #eef2ff; color: #4338ca; }
+.prod-meta { text-align: right; white-space: nowrap; }
+.risk-chip {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  border-radius: 999px; padding: 1px 8px;
+}
+.risk-chip.low  { background: #ecfdf5; color: #047857; }
+.risk-chip.mid  { background: #fffbeb; color: #b45309; }
+.risk-chip.high { background: #fef2f2; color: #b91c1c; }
+.prod-expense { display: block; font-size: 10px; color: #6b7280; margin-top: 2px; }
+.disclaimer { font-size: 10.5px; color: #9ca3af; margin: 4px 2px 0; }
+
 .sent-item {
   padding: 8px 10px; border-radius: 9px; margin-bottom: 6px;
   background: #eff6ff; font-size: 13px; cursor: pointer; line-height: 1.55;
@@ -597,6 +622,23 @@ function setActiveSentence(idx) {
   }
 }
 
+function riskClass(risk) { return risk <= 2 ? 'low' : risk <= 4 ? 'mid' : 'high'; }
+
+function productRowHtml(p) {
+  const typeChip = `<span class="type-chip${p.type === '펀드' ? ' fund' : ''}">${escapeHtml(p.type)}</span>`;
+  return `
+    <div class="product-row" data-code="${escapeHtml(p.code)}" title="${escapeHtml(p.desc)}">
+      <div>
+        <div class="name">${escapeHtml(p.name)}${typeChip}</div>
+        <div class="reason">${escapeHtml(p.reason)} · ${escapeHtml(p.asset)}</div>
+      </div>
+      <div class="prod-meta">
+        <span class="risk-chip ${riskClass(p.risk)}">위험 ${p.risk}등급</span>
+        <span class="prod-expense">연보수 ${p.expense}%</span>
+      </div>
+    </div>`;
+}
+
 function decorateText(text, mentions, terms) {
   const pats = [];
   for (const m of mentions || []) pats.push({ t: m.text, type: 'ticker', data: m });
@@ -634,6 +676,12 @@ async function showCard(idx, anchorEl) {
   if (related.length) {
     html += `<div class="card-sub">📈 관련 종목 — 누르면 차트가 열려요</div>`;
     html += `<div class="card-stocks"><div class="loading-line">시세를 불러오는 중…</div></div>`;
+  }
+  const prods = s.products || [];
+  if (prods.length) {
+    html += `<div class="card-sub">🧺 관련 금융상품 (ETF·펀드)</div>`;
+    html += prods.map(productRowHtml).join('');
+    html += `<div class="disclaimer">※ 투자 권유가 아닌 참고 정보예요.</div>`;
   }
   card.innerHTML = html;
   card.hidden = false;
@@ -682,7 +730,7 @@ function positionCard(anchorEl) {
 
 // 카드 내부의 종목/용어 (Shadow DOM 이벤트 위임)
 card.addEventListener('click', (e) => {
-  const row = e.target.closest && e.target.closest('.stock-row');
+  const row = e.target.closest && e.target.closest('.stock-row, .product-row');
   if (row && row.dataset.code) { hideCardNow(); openChart(row.dataset.code); return; }
   const ticker = e.target.closest && e.target.closest('.ticker');
   if (ticker && ticker.dataset.code) { hideCardNow(); openChart(ticker.dataset.code); }
@@ -729,6 +777,19 @@ async function renderSidebar(data) {
   }
   if (agg.size) {
     html += `<div class="section"><h3>📈 이 기사의 관련 종목</h3><div id="sb-stocks"><div class="loading-line">시세를 불러오는 중…</div></div></div>`;
+  }
+
+  // 기사 전체에서 매칭된 관련 금융상품 (중복 제거)
+  const prodAgg = new Map();
+  for (const s of data.sentences) {
+    for (const p of s.products || []) {
+      if (!prodAgg.has(p.code)) prodAgg.set(p.code, p);
+    }
+  }
+  if (prodAgg.size) {
+    html += `<div class="section"><h3>🧺 이 기사의 관련 금융상품</h3>`;
+    html += [...prodAgg.values()].map(productRowHtml).join('');
+    html += `<div class="disclaimer">※ 투자 권유가 아닌 참고 정보이며, 과거 수익률이 미래를 보장하지 않아요.</div></div>`;
   }
 
   // 문장별 쉬운 번역 목록 (클릭하면 해당 문장으로 스크롤)
@@ -790,7 +851,7 @@ async function renderSidebar(data) {
 }
 
 sidebarBody.addEventListener('click', (e) => {
-  const row = e.target.closest && e.target.closest('.stock-row');
+  const row = e.target.closest && e.target.closest('.stock-row, .product-row');
   if (row && row.dataset.code) { openChart(row.dataset.code); return; }
   const item = e.target.closest && e.target.closest('.sent-item[data-idx]');
   if (item) {

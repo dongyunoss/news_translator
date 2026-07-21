@@ -15,7 +15,7 @@ from pathlib import Path
 
 import requests
 
-from . import stocks
+from . import products, stocks
 
 GLOSSARY: list[dict] = json.loads(
     (Path(__file__).parent / "data" / "glossary.json").read_text(encoding="utf-8")
@@ -412,6 +412,7 @@ def translate_article(text: str) -> dict:
                 "terms": merged_terms,
                 "mentions": mentions,
                 "related": related,
+                "products": products.match_sentence(s),
             }
         )
 

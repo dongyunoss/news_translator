@@ -16,6 +16,8 @@ from pathlib import Path
 
 import requests
 
+from . import products as _products
+
 _DATA = json.loads((Path(__file__).parent / "data" / "stocks.json").read_text(encoding="utf-8"))
 
 STOCKS: dict[str, dict] = {s["code"]: s for s in _DATA["stocks"]}
@@ -100,7 +102,7 @@ def _mock_series(code: str) -> list[dict]:
         if code in _mock_cache:
             return _mock_cache[code]
 
-    info = STOCKS[code]
+    info = STOCKS.get(code) or _products.PRODUCTS[code]
     rng = random.Random(f"{code}-krx")
     days = _business_days(260)
     price = info["base_price"] * rng.uniform(0.75, 0.95)
@@ -141,7 +143,17 @@ def _live_series(code: str) -> list[dict] | None:
             if now - ts < ttl:
                 return series
 
-    suffix = ".KQ" if STOCKS[code]["market"] == "KOSDAQ" else ".KS"
+    stock = STOCKS.get(code)
+    if stock is not None:
+        suffix = ".KQ" if stock["market"] == "KOSDAQ" else ".KS"
+    else:
+        product = _products.PRODUCTS.get(code)
+        if product is None or product["type"] != "ETF":
+            # 펀드는 거래소 시세가 없으므로 모의 데이터만 사용
+            with _series_lock:
+                _live_cache[code] = (now, None)
+            return None
+        suffix = ".KS"  # 국내 상장 ETF
     series: list[dict] | None = None
     try:
         r = requests.get(
@@ -185,13 +197,24 @@ def _get_series(code: str) -> tuple[list[dict], str]:
     return _mock_series(code), "mock"
 
 
+def _instrument_meta(code: str) -> dict | None:
+    """종목이면 (이름, 시장, 섹터), 금융상품이면 (이름, 유형, 자산군)을 돌려준다."""
+    s = STOCKS.get(code)
+    if s is not None:
+        return {"name": s["name"], "market": s["market"], "sector": s["sector"]}
+    p = _products.PRODUCTS.get(code)
+    if p is not None:
+        return {"name": p["name"], "market": p["type"], "sector": p["asset"]}
+    return None
+
+
 def get_quote(code: str) -> dict | None:
-    if code not in STOCKS:
+    info = _instrument_meta(code)
+    if info is None:
         return None
     series, source = _get_series(code)
     last, prev = series[-1], series[-2]
     change = last["close"] - prev["close"]
-    info = STOCKS[code]
     return {
         "code": code,
         "name": info["name"],
@@ -208,11 +231,11 @@ def get_quote(code: str) -> dict | None:
 
 
 def get_chart(code: str, rng: str = "3m") -> dict | None:
-    if code not in STOCKS:
+    info = _instrument_meta(code)
+    if info is None:
         return None
     n = CHART_RANGES.get(rng, CHART_RANGES["3m"])
     series, source = _get_series(code)
-    info = STOCKS[code]
     return {
         "code": code,
         "name": info["name"],
