@@ -30,10 +30,13 @@ MAX_ARTICLE_CHARS = 8000
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
-# 신형 키(AQ. 형식 포함)는 구형 모델에 404를 반환하므로 최신 모델부터 시도한다.
+# 키·프로젝트마다 쓸 수 있는 모델과 무료 할당량이 다르므로 순서대로 시도한다.
+# (404 = 이 키로 못 쓰는 모델, 429 limit:0 = 이 모델에 무료 할당량 없음 → 다음 후보)
 _MODEL_CANDIDATES = [
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
 ]
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -150,9 +153,14 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
     prompt = f"{_SYSTEM_PROMPT}\n\n다음 경제 뉴스 문장들을 번역해줘. 총 {len(sentences)}문장이야.\n\n{numbered}"
 
     with _model_lock:
-        models = [_working_model] if _working_model else list(_MODEL_CANDIDATES)
+        # 이전에 성공한 모델을 먼저 쓰되, 실패하면 나머지 후보도 이어서 시도한다.
+        models = list(_MODEL_CANDIDATES)
+        if _working_model in models:
+            models.remove(_working_model)
+            models.insert(0, _working_model)
 
     last_error = "알 수 없는 오류"
+    quota_zero = False
     for model in models:
         try:
             text = _call_gemini(model, prompt, api_key)
@@ -161,10 +169,14 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
             try:
                 detail = exc.response.json()["error"]["message"]
             except Exception:
-                detail = exc.response.text[:200]
+                detail = exc.response.text
+            detail = detail[:300]
             last_error = f"{model} 호출 실패 (HTTP {status}): {detail}"
-            # 404 = 이 키로 못 쓰는 모델 → 다음 후보 시도. 그 외(키 오류 등)는 즉시 중단.
-            if status == 404:
+            # 404 = 이 키로 못 쓰는 모델, 429 = 할당량 초과/없음 → 다음 후보 시도.
+            # 그 외(키 오류 등)는 어느 모델이든 같게 실패하므로 즉시 중단.
+            if status in (404, 429):
+                if status == 429 and "limit: 0" in detail:
+                    quota_zero = True
                 continue
             raise RuntimeError(last_error) from exc
         except requests.RequestException as exc:
@@ -182,6 +194,13 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
             easy += sentences[len(easy):]
         return easy[: len(sentences)], data.get("summary", "")
 
+    if quota_zero:
+        raise RuntimeError(
+            "이 API 키의 프로젝트에는 Gemini 무료 할당량이 없어요 (limit: 0). "
+            "https://aistudio.google.com/app/apikey 에서 'AIza'로 시작하는 키를 새로 발급해 "
+            "GOOGLE_API_KEY에 넣거나, Google Cloud 프로젝트에 결제를 연결해 주세요. "
+            f"[마지막 오류: {last_error}]"
+        )
     raise RuntimeError(last_error)
 
 
