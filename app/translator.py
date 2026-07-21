@@ -126,13 +126,19 @@ def _strip_code_fence(text: str) -> str:
 def _model_score(name: str) -> float | None:
     """텍스트 생성에 적합한 모델일수록 높은 점수. 부적합 모델은 None."""
     n = name.lower()
+    # 일반 gemini 텍스트 모델만 (deep-research·learnlm 등 특수 모델 제외)
+    if not n.startswith("gemini"):
+        return None
     unfit = (
         "embedding", "aqa", "image", "imagen", "veo", "tts", "audio",
-        "live", "computer-use", "robotics", "gemma",
+        "live", "computer-use", "robotics", "gemma", "deep-research",
+        "interaction", "dialog",
     )
     if any(u in n for u in unfit):
         return None
-    m = re.search(r"(\d+(?:\.\d+)?)", n)
+    # 버전은 "gemini-2.5" 처럼 이름 바로 뒤의 숫자만 인정
+    # (날짜 접미사 "-12-2025" 등을 버전으로 오인하지 않게)
+    m = re.search(r"^gemini-(\d+(?:\.\d+)?)", n)
     score = (float(m.group(1)) if m else 0.0) * 10  # 버전이 높을수록 우선
     if "flash" in n:
         score += 5  # 빠르고 저렴한 flash 계열 우선
@@ -233,9 +239,14 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
                 detail = exc.response.text
             detail = detail[:300]
             last_error = f"{model} 호출 실패 (HTTP {status}): {detail}"
-            # 404 = 이 키로 못 쓰는 모델, 429 = 할당량 초과/없음 → 다음 후보 시도.
-            # 그 외(키 오류 등)는 어느 모델이든 같게 실패하므로 즉시 중단.
-            if status in (404, 429):
+            # 404 = 이 키로 못 쓰는 모델, 429 = 할당량 초과/없음,
+            # 400(키 문제 제외) = "Interactions API 전용" 같은 모델별 제약
+            # → 모두 다음 후보 모델로 넘어간다.
+            # 키 자체 문제(API key not valid 등)는 어느 모델이든 같으므로 즉시 중단.
+            model_specific = status in (404, 429) or (
+                status == 400 and "api key" not in detail.lower()
+            )
+            if model_specific:
                 if status == 429 and "limit: 0" in detail:
                     quota_zero = True
                 continue
