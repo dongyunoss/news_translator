@@ -108,6 +108,12 @@ pageStyle.textContent = `
   transition: background .15s;
 }
 .jn-hl:hover, .jn-hl.jn-active { background: rgba(37,99,235,.20) !important; }
+/* 특히 어려운 문장은 주황색으로 구분 */
+.jn-hl.jn-hard {
+  background: rgba(234,88,12,.12) !important;
+  border-bottom-color: rgba(234,88,12,.55) !important;
+}
+.jn-hl.jn-hard:hover, .jn-hl.jn-hard.jn-active { background: rgba(234,88,12,.24) !important; }
 .jn-ticker {
   color: #2563eb !important; font-weight: 700 !important; cursor: pointer !important;
   border-bottom: 2px solid rgba(37,99,235,.6) !important;
@@ -197,8 +203,9 @@ const CSS = `
 .sent-item .orig { display: block; color: #6b7280; font-size: 11.5px; margin-bottom: 3px; }
 .sent-item .badge {
   display: inline-block; margin-top: 5px; font-size: 10.5px; color: #2563eb;
-  background: #fff; border-radius: 999px; padding: 1px 8px;
+  background: #fff; border-radius: 999px; padding: 1px 8px; margin-right: 4px;
 }
+.sent-item .badge.hard { color: #c2410c; }
 
 .term-item { padding: 6px 2px; border-bottom: 1px dashed #e5e7eb; font-size: 12.5px; }
 .term-item:last-child { border-bottom: none; }
@@ -221,6 +228,11 @@ const CSS = `
   background: #eff6ff; border-radius: 9px; padding: 8px 11px; font-size: 13.5px; margin-bottom: 8px;
 }
 .card .easy::before { content: "🐣 "; }
+.card .hard-chip {
+  display: inline-block; background: #fff7ed; color: #c2410c;
+  border: 1px solid #fed7aa; border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 2px 10px; margin-bottom: 7px;
+}
 .card .card-sub { font-size: 11px; font-weight: 700; color: #6b7280; margin: 2px 2px 4px; }
 .card .ticker { color: #2563eb; font-weight: 600; cursor: pointer; border-bottom: 1.5px solid rgba(37,99,235,.35); }
 .card .ticker:hover { background: #dbeafe; }
@@ -486,6 +498,11 @@ function annotateArticle(container, data) {
     }
     sentMap.set(idx, { data: s, spans });
 
+    // 특히 어려운 문장은 주황색으로 표시
+    if (s.hard) {
+      for (const span of spans) span.classList.add('jn-hard');
+    }
+
     // 문장 안의 종목명·용어에도 표시를 단다.
     for (const span of spans) {
       for (const m of s.mentions || []) {
@@ -610,7 +627,9 @@ async function showCard(idx, anchorEl) {
   setActiveSentence(idx);
 
   const s = entry.data;
-  let html = `<div class="easy">${decorateText(s.easy, s.mentions, s.terms)}</div>`;
+  let html = '';
+  if (s.hard) html += `<div class="hard-chip">🔥 특히 어려운 문장이에요</div>`;
+  html += `<div class="easy">${decorateText(s.easy, s.mentions, s.terms)}</div>`;
   const related = s.related || [];
   if (related.length) {
     html += `<div class="card-sub">📈 관련 종목 — 누르면 차트가 열려요</div>`;
@@ -699,7 +718,7 @@ async function renderSidebar(data) {
   let html = '';
   if (data.notice) html += `<div class="notice">${escapeHtml(data.notice)}</div>`;
   if (data.summary) html += `<div class="section"><h3>📌 세 줄 요약</h3><p>${escapeHtml(data.summary)}</p></div>`;
-  html += `<div class="hint">💡 기사 본문의 <u>파란 밑줄 문장</u>에 마우스를 올려보세요. 쉬운 번역과 관련 종목이 바로 옆에 떠요.</div>`;
+  html += `<div class="hint">💡 기사 본문의 <u>파란 밑줄 문장</u>에 마우스를 올려보세요. 쉬운 번역과 관련 종목이 바로 옆에 떠요. <span style="color:#c2410c">주황 문장</span>은 특히 어려운 문장, 점선 용어는 호버하면 뜻이 나와요.</div>`;
 
   // 기사 전체에서 언급된 관련 종목 (중복 제거)
   const agg = new Map();
@@ -717,8 +736,9 @@ async function renderSidebar(data) {
   data.sentences.forEach((s, idx) => {
     const entry = sentMap.get(idx);
     const matched = entry && entry.spans.length > 0;
-    const badge = (s.related || []).length
-      ? `<span class="badge">📈 관련 종목 ${s.related.length}개</span>` : '';
+    let badge = '';
+    if (s.hard) badge += `<span class="badge hard">🔥 어려운 문장</span>`;
+    if ((s.related || []).length) badge += `<span class="badge">📈 관련 종목 ${s.related.length}개</span>`;
     if (matched) {
       html += `<div class="sent-item" data-idx="${idx}" title="누르면 기사에서 이 문장을 찾아가요">${escapeHtml(s.easy)}${badge}</div>`;
     } else {

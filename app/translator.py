@@ -47,17 +47,23 @@ _model_lock = threading.Lock()
 
 _SYSTEM_PROMPT = """\
 너는 주식을 처음 시작한 초보 투자자('주린이')를 위한 경제 뉴스 해설가야.
-어려운 경제·주식 기사 문장을 받아서, 한 문장씩 쉬운 한국어로 풀어서 설명해.
+어려운 경제·주식·기술 기사 문장을 받아서, 한 문장씩 쉬운 한국어로 풀어서 설명해.
 
-규칙:
-- 문장 개수와 순서를 입력과 똑같이 유지해. 문장을 합치거나 나누지 마.
-- 전문 용어는 일상적인 말로 풀어 쓰되, 핵심 의미가 사라지면 안 돼.
-- 친근한 해요체를 사용해. (예: "~라는 뜻이에요", "~하고 있어요")
-- 각 문장의 쉬운 번역은 원문보다 크게 길어지지 않게 해.
-- summary에는 기사 전체를 주린이가 이해할 수 있게 2~3문장으로 요약해.
+각 문장마다:
+- easy: 전문 용어를 일상적인 말로 풀어 쓴 쉬운 번역. 친근한 해요체(예: "~라는 뜻이에요").
+  핵심 의미가 사라지면 안 되고, 원문보다 크게 길어지지 않게 해.
+- terms: 그 문장에 등장하는 어려운 경제·금융·기술 용어 목록 (최대 4개).
+  * word: 원문에 등장한 표기 그대로 (띄어쓰기·조사 없이 단어만)
+  * meaning: 6~15자의 아주 짧은 뜻풀이
+  * detail: 주린이 눈높이의 한 문장 설명
+  누구나 아는 쉬운 단어는 넣지 마.
+- hard: 전문 용어가 많거나 구조가 복잡해서 초보자가 특히 이해하기 어려운 문장이면 true.
+
+summary에는 기사 전체를 주린이가 이해할 수 있게 2~3문장으로 요약해.
 
 응답은 반드시 아래 JSON 형식만 출력해 (다른 텍스트·코드블록 금지):
-{"summary": "기사 요약", "sentences": [{"easy": "문장1 번역"}, {"easy": "문장2 번역"}]}"""
+{"summary": "기사 요약", "sentences": [{"easy": "문장1 번역", "hard": false,
+ "terms": [{"word": "밸류에이션", "meaning": "기업 가치 평가", "detail": "주가가 기업의 실제 가치에 비해 싼지 비싼지 따져보는 일이에요."}]}]}"""
 
 
 def _load_dotenv() -> None:
@@ -188,6 +194,8 @@ def _discover_models(api_key: str) -> list[str]:
 
 
 # 구조화 출력 강제 스키마 — 모델이 형식이 깨진 JSON을 내놓지 못하게 한다.
+# 용어 필드는 word/meaning/detail로 명명해 문장 번역 키(easy)와 겹치지 않게 한다
+# (_salvage_json이 "easy"만 찾아 복구하므로 이름이 겹치면 안 됨).
 _RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -196,7 +204,22 @@ _RESPONSE_SCHEMA = {
             "type": "ARRAY",
             "items": {
                 "type": "OBJECT",
-                "properties": {"easy": {"type": "STRING"}},
+                "properties": {
+                    "easy": {"type": "STRING"},
+                    "hard": {"type": "BOOLEAN"},
+                    "terms": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "word": {"type": "STRING"},
+                                "meaning": {"type": "STRING"},
+                                "detail": {"type": "STRING"},
+                            },
+                            "required": ["word", "meaning"],
+                        },
+                    },
+                },
                 "required": ["easy"],
             },
         },
@@ -246,8 +269,8 @@ def _salvage_json(text: str) -> dict | None:
     return {"summary": summary, "sentences": [{"easy": e} for e in easies]}
 
 
-def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
-    """Gemini로 문장별 쉬운 번역 + 요약을 생성한다. 실패 시 RuntimeError(사유 포함)."""
+def _gemini_translate(sentences: list[str]) -> tuple[list[dict], str]:
+    """Gemini로 문장별 {easy, hard, terms} + 요약을 생성한다. 실패 시 RuntimeError(사유 포함)."""
     global _working_model
 
     api_key = _api_key()
@@ -299,8 +322,16 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
         except (json.JSONDecodeError, TypeError):
             data = _salvage_json(text)  # 깨진 JSON에서 문장 복구 시도
         try:
-            easy = [s["easy"] for s in data["sentences"]]
-            if not easy:
+            result = [
+                {
+                    "easy": s["easy"],
+                    "hard": bool(s.get("hard")),
+                    "terms": s.get("terms") or [],
+                }
+                for s in data["sentences"]
+                if isinstance(s, dict) and s.get("easy")
+            ]
+            if not result:
                 raise KeyError("sentences")
         except (KeyError, TypeError) as exc:
             raise RuntimeError(
@@ -309,9 +340,10 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
 
         with _model_lock:
             _working_model = model
-        if len(easy) < len(sentences):
-            easy += sentences[len(easy):]
-        return easy[: len(sentences)], data.get("summary", "")
+        # 개수가 모자라면 나머지는 원문 그대로 채운다.
+        while len(result) < len(sentences):
+            result.append({"easy": sentences[len(result)], "hard": False, "terms": []})
+        return result[: len(sentences)], data.get("summary", "")
 
     if quota_zero:
         raise RuntimeError(
@@ -333,31 +365,51 @@ def translate_article(text: str) -> dict:
 
     summary: str | None = None
     notice: str | None = None
-    easy_list: list[str] | None = None
+    ai_sentences: list[dict] | None = None
     source = "glossary"
 
     try:
-        easy_list, summary = _gemini_translate(sentences)
+        ai_sentences, summary = _gemini_translate(sentences)
         source = "gemini"
     except Exception as exc:
-        easy_list = None
         reason = str(exc)
         notice = (
             "Gemini 번역에 실패해 내장 용어사전 기반 간이 번역으로 보여주고 있어요. "
             f"(사유: {reason})"
         )
 
-    if easy_list is None:
-        easy_list = [_fallback_easy(s, t) for s, t in zip(sentences, per_terms)]
-
     result_sentences = []
-    for s, easy, terms in zip(sentences, easy_list, per_terms):
+    for i, (s, terms) in enumerate(zip(sentences, per_terms)):
+        ai = ai_sentences[i] if ai_sentences else None
+        easy = ai["easy"] if ai else _fallback_easy(s, terms)
+        hard = bool(ai and ai.get("hard"))
+
+        # 내장 사전 용어 + Gemini가 찾은 어려운 경제·기술 용어 병합 (사전 우선)
+        merged_terms = list(terms)
+        seen = {t["term"] for t in merged_terms}
+        for t in (ai.get("terms") if ai else None) or []:
+            if not isinstance(t, dict):
+                continue
+            word = (t.get("word") or "").strip()
+            # 원문에 실제로 등장하는 새 용어만 (본문 하이라이트가 가능해야 함)
+            if not word or word in seen or word not in s:
+                continue
+            seen.add(word)
+            merged_terms.append(
+                {
+                    "term": word,
+                    "easy": (t.get("meaning") or "").strip() or "어려운 용어",
+                    "desc": (t.get("detail") or "").strip(),
+                }
+            )
+
         mentions, related = stocks.analyze_sentence(s)
         result_sentences.append(
             {
                 "original": s,
                 "easy": easy,
-                "terms": terms,
+                "hard": hard,
+                "terms": merged_terms,
                 "mentions": mentions,
                 "related": related,
             }

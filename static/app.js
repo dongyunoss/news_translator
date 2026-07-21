@@ -133,11 +133,13 @@ function renderResult(data) {
 
   for (const s of data.sentences) {
     const block = document.createElement("div");
-    block.className = "sentence-block";
+    block.className = "sentence-block" + (s.hard ? " hard" : "");
     block._related = s.related;
 
-    let html = `<div class="sentence-original">${decorateText(s.original, s.mentions, s.terms)}</div>`;
-    html += `<div class="sentence-easy">${decorateText(s.easy, s.mentions, [])}</div>`;
+    let html = "";
+    if (s.hard) html += `<span class="hard-chip">🔥 특히 어려운 문장</span>`;
+    html += `<div class="sentence-original">${decorateText(s.original, s.mentions, s.terms)}</div>`;
+    html += `<div class="sentence-easy">${decorateText(s.easy, s.mentions, s.terms)}</div>`;
     if (s.related.length) {
       html += `<span class="related-badge">📈 관련 종목 ${s.related.length}개 — 마우스를 올려보세요</span>`;
     }
