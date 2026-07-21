@@ -48,14 +48,27 @@ settingsBtn.addEventListener('click', () => {
   }
 });
 
+// API 주소 보정: 공백/끝 슬래시 제거, 스킴이 없으면 https:// (로컬은 http://) 추가
+function normalizeBase(apiUrl) {
+  let base = (apiUrl || '').trim().replace(/\/+$/, '');
+  if (!base) return '';
+  if (!/^https?:\/\//i.test(base)) {
+    const isLocal = /^(localhost|127\.0\.0\.1)(:|$)/i.test(base);
+    base = (isLocal ? 'http://' : 'https://') + base;
+  }
+  return base;
+}
+
 // 설정 저장
 saveSettingsBtn.addEventListener('click', () => {
+  const normalized = normalizeBase(apiUrlInput.value);
+  apiUrlInput.value = normalized;
   chrome.storage.local.set({
-    apiUrl: apiUrlInput.value,
+    apiUrl: normalized,
     apiKey: apiKeyInput.value,
   });
   settingsPanel.hidden = true;
-  showStatus('설정이 저장되었습니다.');
+  showStatus(normalized ? `설정이 저장되었습니다. (API: ${normalized})` : '설정이 저장되었습니다.');
 });
 
 cancelSettingsBtn.addEventListener('click', () => {
@@ -106,7 +119,7 @@ translateBtn.addEventListener('click', async () => {
       chrome.storage.local.get(['apiUrl', 'apiKey'], resolve);
     });
 
-    const apiUrl = settings.apiUrl || 'http://localhost:8000';
+    const apiUrl = normalizeBase(settings.apiUrl) || 'http://localhost:8000';
     const response = await fetch(`${apiUrl}/api/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
