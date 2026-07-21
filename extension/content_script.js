@@ -69,13 +69,33 @@ function cleanText(raw) {
 // ---------------------------------------------------------------------------
 // 백그라운드 경유 API 호출 (뉴스 사이트 CORS 우회)
 // ---------------------------------------------------------------------------
+// 확장을 새로고침/업데이트하면 이미 열려 있던 페이지의 콘텐츠 스크립트는
+// 연결이 끊긴다("Extension context invalidated"). 페이지 새로고침만 하면 되므로
+// 정확한 안내 메시지로 바꿔서 알려준다.
+const STALE_MSG = '확장프로그램이 업데이트되어 이 페이지와의 연결이 끊겼어요. 페이지를 새로고침하면 다시 작동해요.';
+
+function isStaleContextError(msg) {
+  return /context invalidated|Receiving end does not exist|message port closed/i.test(msg || '');
+}
+
 function api(path, method, body) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: 'api', path, method, body }, (res) => {
-      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-      if (!res || !res.ok) return reject(new Error((res && res.error) || '요청에 실패했어요.'));
-      resolve(res.data);
-    });
+    if (!chrome.runtime || !chrome.runtime.id) {
+      return reject(new Error(STALE_MSG));
+    }
+    try {
+      chrome.runtime.sendMessage({ type: 'api', path, method, body }, (res) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message;
+          return reject(new Error(isStaleContextError(msg) ? STALE_MSG : msg));
+        }
+        if (!res || !res.ok) return reject(new Error((res && res.error) || '요청에 실패했어요.'));
+        resolve(res.data);
+      });
+    } catch (e) {
+      // 컨텍스트가 무효화되면 sendMessage가 동기적으로 예외를 던진다
+      reject(new Error(isStaleContextError(e.message) ? STALE_MSG : e.message));
+    }
   });
 }
 
@@ -241,6 +261,11 @@ const CSS = `
   background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
   border-radius: 10px; padding: 11px 13px; font-size: 13px;
 }
+.reload-btn {
+  background: #2563eb; color: #fff; border: none; border-radius: 8px;
+  padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.reload-btn:hover { background: #1d4ed8; }
 
 /* ------- 문장 호버 카드 (기사 본문 옆에 뜸) ------- */
 .card {
@@ -422,9 +447,17 @@ fab.addEventListener('click', async () => {
     fab.querySelector('span').textContent = '📰';
     fabLabel.textContent = '관련 정보 열기/닫기';
   } catch (err) {
-    sidebarBody.innerHTML =
-      `<div class="error-card">번역에 실패했어요: ${escapeHtml(err.message)}<br><br>` +
-      `확장 아이콘(📰) 팝업의 ⚙️ 설정에서 API 주소를 확인해 주세요.</div>`;
+    if (err.message === STALE_MSG) {
+      sidebarBody.innerHTML =
+        `<div class="error-card">🔄 ${escapeHtml(err.message)}<br><br>` +
+        `<button id="reload-page" class="reload-btn">지금 새로고침하기</button></div>`;
+      const btn = sidebarBody.querySelector('#reload-page');
+      if (btn) btn.addEventListener('click', () => location.reload());
+    } else {
+      sidebarBody.innerHTML =
+        `<div class="error-card">번역에 실패했어요: ${escapeHtml(err.message)}<br><br>` +
+        `확장 아이콘(📰) 팝업의 ⚙️ 설정에서 API 주소를 확인해 주세요.</div>`;
+    }
     fab.querySelector('span').textContent = '📰';
     fabLabel.textContent = '다시 시도';
   } finally {

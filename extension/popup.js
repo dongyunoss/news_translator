@@ -76,6 +76,11 @@ extractBtn.addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   chrome.tabs.sendMessage(tab.id, { action: 'extractText' }, (response) => {
+    if (chrome.runtime.lastError) {
+      // 확장 업데이트 후 페이지를 새로고침하지 않았거나, 스크립트가 없는 페이지
+      showError('이 페이지와 연결할 수 없어요. 기사 페이지를 새로고침(F5)한 뒤 다시 시도해 주세요.');
+      return;
+    }
     if (response && response.text) {
       articleText.value = response.text;
       showStatus('기사가 추출되었습니다.');
