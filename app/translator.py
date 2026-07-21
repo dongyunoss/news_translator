@@ -187,6 +187,24 @@ def _discover_models(api_key: str) -> list[str]:
     return models
 
 
+# 구조화 출력 강제 스키마 — 모델이 형식이 깨진 JSON을 내놓지 못하게 한다.
+_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "summary": {"type": "STRING"},
+        "sentences": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {"easy": {"type": "STRING"}},
+                "required": ["easy"],
+            },
+        },
+    },
+    "required": ["summary", "sentences"],
+}
+
+
 def _call_gemini(model: str, prompt: str, api_key: str) -> str:
     """단일 모델 호출. 성공 시 응답 텍스트, 실패 시 requests.HTTPError."""
     resp = requests.post(
@@ -197,13 +215,35 @@ def _call_gemini(model: str, prompt: str, api_key: str) -> str:
             "generationConfig": {
                 "temperature": 0.3,
                 "responseMimeType": "application/json",
+                "responseSchema": _RESPONSE_SCHEMA,
             },
         },
-        timeout=60,
+        timeout=90,
     )
     resp.raise_for_status()
     body = resp.json()
-    return body["candidates"][0]["content"]["parts"][0]["text"]
+    parts = body["candidates"][0]["content"]["parts"]
+    return "".join(p.get("text", "") for p in parts)
+
+
+def _salvage_json(text: str) -> dict | None:
+    """잘리거나 일부 깨진 JSON 응답에서 summary와 easy 문장들을 최대한 건져낸다."""
+    easies: list[str] = []
+    for m in re.finditer(r'"easy"\s*:\s*"((?:[^"\\]|\\.)*)"', text):
+        try:
+            easies.append(json.loads(f'"{m.group(1)}"'))
+        except json.JSONDecodeError:
+            easies.append(m.group(1))
+    if not easies:
+        return None
+    summary = ""
+    sm = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+    if sm:
+        try:
+            summary = json.loads(f'"{sm.group(1)}"')
+        except json.JSONDecodeError:
+            summary = sm.group(1)
+    return {"summary": summary, "sentences": [{"easy": e} for e in easies]}
 
 
 def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
@@ -256,9 +296,16 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
 
         try:
             data = json.loads(_strip_code_fence(text))
+        except (json.JSONDecodeError, TypeError):
+            data = _salvage_json(text)  # 깨진 JSON에서 문장 복구 시도
+        try:
             easy = [s["easy"] for s in data["sentences"]]
-        except (json.JSONDecodeError, KeyError, TypeError) as exc:
-            raise RuntimeError(f"Gemini 응답(JSON) 해석에 실패했어요: {exc}") from exc
+            if not easy:
+                raise KeyError("sentences")
+        except (KeyError, TypeError) as exc:
+            raise RuntimeError(
+                f"Gemini 응답(JSON) 해석에 실패했어요. 응답 앞부분: {text[:150]!r}"
+            ) from exc
 
         with _model_lock:
             _working_model = model
