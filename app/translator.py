@@ -30,18 +30,19 @@ MAX_ARTICLE_CHARS = 8000
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
-# 키·프로젝트마다 쓸 수 있는 모델과 무료 할당량이 다르므로 순서대로 시도한다.
-# (404 = 이 키로 못 쓰는 모델, 429 limit:0 = 이 모델에 무료 할당량 없음 → 다음 후보)
+# ListModels 조회가 실패할 때만 쓰는 예비 후보 목록.
+# 실제로는 키로 사용 가능한 모델을 Google에 물어봐서(_discover_models) 고른다.
 _MODEL_CANDIDATES = [
+    "gemini-flash-latest",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
 ]
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 _working_model: str | None = None
+_discovered_models: list[str] | None = None
 _model_lock = threading.Lock()
 
 _SYSTEM_PROMPT = """\
@@ -122,6 +123,64 @@ def _strip_code_fence(text: str) -> str:
     return text.strip()
 
 
+def _model_score(name: str) -> float | None:
+    """텍스트 생성에 적합한 모델일수록 높은 점수. 부적합 모델은 None."""
+    n = name.lower()
+    unfit = (
+        "embedding", "aqa", "image", "imagen", "veo", "tts", "audio",
+        "live", "computer-use", "robotics", "gemma",
+    )
+    if any(u in n for u in unfit):
+        return None
+    m = re.search(r"(\d+(?:\.\d+)?)", n)
+    score = (float(m.group(1)) if m else 0.0) * 10  # 버전이 높을수록 우선
+    if "flash" in n:
+        score += 5  # 빠르고 저렴한 flash 계열 우선
+    elif "pro" in n:
+        score += 2
+    if "latest" in n:
+        score += 3
+    if "lite" in n:
+        score -= 1
+    if "preview" in n or "exp" in n:
+        score -= 4
+    if "thinking" in n:
+        score -= 3
+    return score
+
+
+def _discover_models(api_key: str) -> list[str]:
+    """이 키로 실제 사용 가능한 generateContent 모델을 조회해 우선순위로 정렬한다."""
+    global _discovered_models
+    with _model_lock:
+        if _discovered_models is not None:
+            return _discovered_models
+
+    try:
+        resp = requests.get(
+            _API_BASE, params={"key": api_key, "pageSize": 1000}, timeout=15
+        )
+        resp.raise_for_status()
+        scored: list[tuple[float, str]] = []
+        for m in resp.json().get("models", []):
+            if "generateContent" not in m.get("supportedGenerationMethods", []):
+                continue
+            name = m["name"].removeprefix("models/")
+            score = _model_score(name)
+            if score is not None:
+                scored.append((score, name))
+        scored.sort(key=lambda x: -x[0])
+        models = [name for _, name in scored[:8]]
+    except Exception:
+        models = []  # 조회 실패 → 예비 목록 사용
+
+    if not models:
+        models = list(_MODEL_CANDIDATES)
+    with _model_lock:
+        _discovered_models = models
+    return models
+
+
 def _call_gemini(model: str, prompt: str, api_key: str) -> str:
     """단일 모델 호출. 성공 시 응답 텍스트, 실패 시 requests.HTTPError."""
     resp = requests.post(
@@ -152,11 +211,13 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
     numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
     prompt = f"{_SYSTEM_PROMPT}\n\n다음 경제 뉴스 문장들을 번역해줘. 총 {len(sentences)}문장이야.\n\n{numbered}"
 
+    # 키로 사용 가능한 모델 목록을 조회하고,
+    # 이전에 성공한 모델이 있으면 그것부터 시도한다.
+    models = list(_discover_models(api_key))
     with _model_lock:
-        # 이전에 성공한 모델을 먼저 쓰되, 실패하면 나머지 후보도 이어서 시도한다.
-        models = list(_MODEL_CANDIDATES)
-        if _working_model in models:
-            models.remove(_working_model)
+        if _working_model:
+            if _working_model in models:
+                models.remove(_working_model)
             models.insert(0, _working_model)
 
     last_error = "알 수 없는 오류"
@@ -201,7 +262,7 @@ def _gemini_translate(sentences: list[str]) -> tuple[list[str], str]:
             "GOOGLE_API_KEY에 넣거나, Google Cloud 프로젝트에 결제를 연결해 주세요. "
             f"[마지막 오류: {last_error}]"
         )
-    raise RuntimeError(last_error)
+    raise RuntimeError(f"시도한 모델: {', '.join(models)} / 마지막 오류: {last_error}")
 
 
 def translate_article(text: str) -> dict:
