@@ -15,6 +15,30 @@ const saveSettingsBtn = document.getElementById('save-settings');
 const cancelSettingsBtn = document.getElementById('cancel-settings');
 const apiUrlInput = document.getElementById('api-url');
 const apiKeyInput = document.getElementById('api-key');
+const enableToggle = document.getElementById('enable-toggle');
+const toggleStatus = document.getElementById('toggle-status');
+
+// ---------------------------------------------------------------------------
+// 기능 켜기/끄기 토글 — 기사 페이지의 번역 버튼(FAB)을 보이거나 숨긴다
+// ---------------------------------------------------------------------------
+function renderToggleStatus(enabled) {
+  toggleStatus.textContent = enabled
+    ? '기사 페이지에서 번역 버튼이 표시돼요'
+    : '기능이 꺼져 있어요 — 기사 페이지에 버튼이 표시되지 않아요';
+  toggleStatus.classList.toggle('off', !enabled);
+}
+
+chrome.storage.local.get(['enabled'], ({ enabled }) => {
+  const on = enabled !== false; // 기본값: 켜짐
+  enableToggle.checked = on;
+  renderToggleStatus(on);
+});
+
+enableToggle.addEventListener('change', () => {
+  const on = enableToggle.checked;
+  chrome.storage.local.set({ enabled: on });
+  renderToggleStatus(on);
+});
 
 // 설정 토글
 settingsBtn.addEventListener('click', () => {

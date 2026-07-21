@@ -1,4 +1,3 @@
 fastapi>=0.110
 uvicorn>=0.29
-google-generativeai>=0.3.0
 requests>=2.31

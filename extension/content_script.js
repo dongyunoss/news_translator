@@ -336,6 +336,26 @@ let translating = false;
 const sentMap = new Map();
 
 // ---------------------------------------------------------------------------
+// 기능 켜기/끄기 (팝업의 토글 스위치와 연동)
+// ---------------------------------------------------------------------------
+fab.hidden = true; // 설정을 읽기 전엔 숨겨서 꺼짐 상태에서 깜빡이지 않게 함
+chrome.storage.local.get(['enabled'], ({ enabled }) => {
+  fab.hidden = enabled === false; // 기본값: 켜짐
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !('enabled' in changes)) return;
+  const on = changes.enabled.newValue !== false;
+  fab.hidden = !on;
+  if (!on) {
+    // 끄면 열려 있던 UI를 모두 닫는다 (하이라이트는 무해하므로 유지)
+    sidebar.hidden = true;
+    hideCardNow();
+    tooltip.hidden = true;
+    modal.hidden = true;
+  }
+});
+
+// ---------------------------------------------------------------------------
 // 플로팅 버튼 → 번역 실행 / 사이드바 토글
 // ---------------------------------------------------------------------------
 fab.addEventListener('click', async () => {

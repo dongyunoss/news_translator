@@ -11,9 +11,14 @@
     <div class="header">
       <h1>📰 주린이 번역기</h1>
       <div class="settings">
+        <label class="toggle" title="기사 페이지의 번역 버튼 켜기/끄기">
+          <input type="checkbox" id="enable-toggle" checked>
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
         <button id="settings-btn" class="settings-btn" title="설정">⚙️</button>
       </div>
     </div>
+    <p id="toggle-status" class="toggle-status">기사 페이지에서 번역 버튼이 표시돼요</p>
 
     <!-- 설정 패널 -->
     <div id="settings-panel" class="settings-panel" hidden>

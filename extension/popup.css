@@ -37,6 +37,61 @@ body {
 .settings {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+/* 켜기/끄기 토글 스위치 */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.toggle input {
+  display: none;
+}
+
+.toggle-track {
+  width: 42px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: left 0.2s;
+}
+
+.toggle input:checked + .toggle-track {
+  background: #2563eb;
+}
+
+.toggle input:checked + .toggle-track .toggle-thumb {
+  left: 21px;
+}
+
+.toggle-status {
+  margin: 0;
+  padding: 8px 16px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.toggle-status.off {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 .settings-btn {
