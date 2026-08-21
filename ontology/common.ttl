@@ -1,0 +1,205 @@
+@prefix fp:   <http://mafest.ai/product#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://mafest.ai/product>
+    a owl:Ontology ;
+    rdfs:label "금융상품 공통 온톨로지"@ko ;
+    rdfs:comment """4개 상품군(국내채권·국내ETF·해외ETF·공모펀드)의 공통 상위 클래스와
+    공유 속성, 그리고 값 도메인을 정의한다. 상품군별 정의는 bond_kr / etf_kr /
+    etf_gl / fund_pub 온톨로지가 이 파일을 확장한다."""@ko .
+
+# =============================================================================
+# 어노테이션 속성 — 온톨로지를 실행 가능한 가이드라인으로 만드는 장치
+# =============================================================================
+# 스키마를 사람이 읽는 문서가 아니라 에이전트가 조회하는 메타데이터로 쓴다.
+# sourceTable/sourceColumn은 근거 표시(retrieved_context)를 자동 생성하고,
+# coverage는 "데이터에 없는 것을 묻는 질의"를 검색 전에 판별하는 데 쓴다.
+
+fp:sourceTable a owl:AnnotationProperty ;
+    rdfs:label "출처 테이블"@ko ;
+    rdfs:comment "이 속성이 유래한 마스터 테이블 ID."@ko .
+
+fp:sourceColumn a owl:AnnotationProperty ;
+    rdfs:label "출처 컬럼"@ko ;
+    rdfs:comment "마스터 테이블에서의 컬럼명(논리명)."@ko .
+
+fp:coverage a owl:AnnotationProperty ;
+    rdfs:label "수록 범위"@ko ;
+    rdfs:comment """제공 데이터에 이 속성이 얼마나 채워져 있는가.
+    full    = 전 종목 수록
+    partial = 일부 종목만 수록 — 답변 시 미수록 종목이 있음을 밝혀야 한다
+    none    = 미수록 — 이 속성을 묻는 질의는 '확인할 수 없음'으로 응답한다"""@ko .
+
+fp:ordinal a owl:AnnotationProperty ;
+    rdfs:label "서열"@ko ;
+    rdfs:comment """순서가 있는 값 도메인에서의 위치. 값이 클수록 상위 등급이다.
+    "AA- 이상", "위험등급 3등급 이하" 같은 비교 조건을 SQL로 옮길 때 쓴다."""@ko .
+
+fp:appliesTo a owl:AnnotationProperty ;
+    rdfs:label "적용 상품군"@ko ;
+    rdfs:comment "값 도메인이 적용되는 상품 클래스."@ko .
+
+# =============================================================================
+# 클래스 계층
+# =============================================================================
+
+fp:Product a owl:Class ;
+    rdfs:label "금융상품"@ko ;
+    rdfs:comment "모든 상품군의 공통 상위 클래스."@ko .
+
+fp:Bond a owl:Class ;
+    rdfs:subClassOf fp:Product ;
+    rdfs:label "채권"@ko .
+
+fp:Fund a owl:Class ;
+    rdfs:subClassOf fp:Product ;
+    rdfs:label "펀드"@ko ;
+    rdfs:comment "집합투자기구. ETF는 거래소에 상장된 펀드이므로 이 클래스의 하위다."@ko .
+
+fp:ETF a owl:Class ;
+    rdfs:subClassOf fp:Fund ;
+    rdfs:label "상장지수펀드"@ko .
+
+# =============================================================================
+# 공통 속성
+# =============================================================================
+
+fp:productCode a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range xsd:string ;
+    rdfs:label "종목코드"@ko ;
+    fp:coverage "full" .
+
+fp:productName a owl:DatatypeProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range xsd:string ;
+    rdfs:label "종목명"@ko ;
+    fp:coverage "full" .
+
+fp:netAssets a owl:DatatypeProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "순자산"@ko ;
+    skos:altLabel "운용규모"@ko , "설정액"@ko , "자산규모"@ko ;
+    rdfs:comment "운용 규모. 해외 ETF는 AUM으로 표기된다."@ko .
+
+fp:asOfDate a owl:DatatypeProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range xsd:date ;
+    rdfs:label "데이터 기준일"@ko ;
+    rdfs:comment "제공 스냅샷 기준일. 모든 답변에 이 날짜를 함께 밝힌다."@ko ;
+    fp:coverage "full" .
+
+fp:managedBy a owl:ObjectProperty ;
+    rdfs:domain fp:Fund ;
+    rdfs:range fp:AssetManager ;
+    rdfs:label "운용사"@ko .
+
+fp:hasRiskGrade a owl:ObjectProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range fp:RiskGrade ;
+    rdfs:label "위험등급"@ko ;
+    skos:altLabel "위험도"@ko , "리스크등급"@ko .
+
+fp:hasAssetClass a owl:ObjectProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range fp:AssetClass ;
+    rdfs:label "투자자산군"@ko ;
+    skos:altLabel "자산군"@ko , "운용속성"@ko , "유형"@ko .
+
+fp:hasRegion a owl:ObjectProperty ;
+    rdfs:domain fp:Product ;
+    rdfs:range fp:Region ;
+    rdfs:label "투자지역"@ko ;
+    skos:altLabel "지역"@ko , "투자국가"@ko .
+
+fp:AssetManager a owl:Class ;
+    rdfs:label "운용사"@ko .
+
+# =============================================================================
+# 값 도메인 — 위험등급 (1등급이 가장 높은 위험)
+# =============================================================================
+# 서열이 뒤집혀 있다는 점이 중요하다. "위험등급이 낮은 상품"은 등급 숫자가 큰
+# 상품이므로, 숫자 비교를 그대로 쓰면 정반대 결과가 나온다. ordinal은 위험의
+# 크기를 따르게 두고(1등급이 최대), 숫자는 코드로만 쓴다.
+
+fp:RiskGrade a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "위험등급"@ko .
+
+fp:RiskGradeScheme a skos:ConceptScheme ;
+    rdfs:label "위험등급 체계"@ko ;
+    fp:appliesTo fp:Product .
+
+fp:riskGrade1 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "1등급"@ko ; skos:altLabel "매우 높은 위험"@ko ; fp:ordinal 6 .
+fp:riskGrade2 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "2등급"@ko ; skos:altLabel "높은 위험"@ko ; fp:ordinal 5 .
+fp:riskGrade3 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "3등급"@ko ; skos:altLabel "다소 높은 위험"@ko ; fp:ordinal 4 .
+fp:riskGrade4 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "4등급"@ko ; skos:altLabel "보통 위험"@ko ; fp:ordinal 3 .
+fp:riskGrade5 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "5등급"@ko ; skos:altLabel "낮은 위험"@ko ; fp:ordinal 2 .
+fp:riskGrade6 a fp:RiskGrade ; skos:inScheme fp:RiskGradeScheme ;
+    skos:prefLabel "6등급"@ko ; skos:altLabel "매우 낮은 위험"@ko ; fp:ordinal 1 .
+
+# =============================================================================
+# 값 도메인 — 투자자산군 · 투자지역
+# =============================================================================
+
+fp:AssetClass a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "투자자산군"@ko .
+
+fp:AssetClassScheme a skos:ConceptScheme ;
+    rdfs:label "투자자산군 체계"@ko ;
+    fp:appliesTo fp:Product .
+
+fp:assetEquity a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "주식형"@ko ; skos:altLabel "주식"@ko , "Equity"@en .
+fp:assetBond a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "채권형"@ko ; skos:altLabel "채권"@ko , "Fixed Income"@en .
+fp:assetMixed a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "혼합형"@ko ; skos:altLabel "주식혼합"@ko , "채권혼합"@ko .
+fp:assetCommodity a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "commodity"@ko ; skos:altLabel "원자재"@ko , "Commodity"@en .
+fp:assetCurrency a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "통화형"@ko ; skos:altLabel "외환"@ko , "Currency"@en .
+fp:assetRealEstate a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "부동산형"@ko ; skos:altLabel "리츠"@ko , "REITs"@en .
+fp:assetMMF a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "MMF"@ko ; skos:altLabel "단기금융"@ko .
+fp:assetDerivative a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "파생형"@ko ; skos:altLabel "파생상품"@ko .
+fp:assetMultiAsset a fp:AssetClass ; skos:inScheme fp:AssetClassScheme ;
+    skos:prefLabel "멀티에셋"@ko ; skos:altLabel "자산배분"@ko .
+
+fp:Region a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "투자지역"@ko .
+
+fp:RegionScheme a skos:ConceptScheme ;
+    rdfs:label "투자지역 체계"@ko ;
+    fp:appliesTo fp:Product .
+
+fp:regionKorea a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "국내"@ko ; skos:altLabel "한국"@ko , "Korea"@en .
+fp:regionUS a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "미국"@ko ; skos:altLabel "북미"@ko , "United States"@en .
+fp:regionChina a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "중국"@ko ; skos:altLabel "China"@en .
+fp:regionJapan a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "일본"@ko ; skos:altLabel "Japan"@en .
+fp:regionEurope a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "유럽"@ko ; skos:altLabel "Europe"@en .
+fp:regionEmerging a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "신흥국"@ko ; skos:altLabel "이머징"@ko , "Emerging"@en .
+fp:regionGlobal a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "글로벌"@ko ; skos:altLabel "전세계"@ko , "Global"@en .
+fp:regionAsia a fp:Region ; skos:inScheme fp:RegionScheme ;
+    skos:prefLabel "아시아"@ko ; skos:altLabel "Asia"@en .

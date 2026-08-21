@@ -1,0 +1,159 @@
+@prefix fp:   <http://mafest.ai/product#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://mafest.ai/product/bond_kr>
+    a owl:Ontology ;
+    owl:imports <http://mafest.ai/product> ;
+    rdfs:label "국내채권 온톨로지"@ko ;
+    rdfs:comment "국내채권마스터(PRBD01N001, 42,394건)의 도메인 정의."@ko .
+
+fp:DomesticBond a owl:Class ;
+    rdfs:subClassOf fp:Bond ;
+    rdfs:label "국내채권"@ko ;
+    skos:altLabel "채권"@ko , "원화채권"@ko , "국내 채권"@ko ;
+    fp:sourceTable "PRBD01N001" .
+
+# =============================================================================
+# 속성
+# =============================================================================
+
+fp:bondType a owl:ObjectProperty ;
+    rdfs:domain fp:DomesticBond ;
+    rdfs:range fp:BondType ;
+    rdfs:label "채권종류"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "채권종류" ; fp:coverage "full" .
+
+fp:hasCreditRating a owl:ObjectProperty ;
+    rdfs:domain fp:DomesticBond ;
+    rdfs:range fp:CreditRating ;
+    rdfs:label "신용등급"@ko ;
+    skos:altLabel "등급"@ko , "신용도"@ko , "크레딧등급"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "신용등급" ; fp:coverage "full" .
+
+fp:issueDate a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:date ;
+    rdfs:label "발행일"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "발행일" ; fp:coverage "full" .
+
+fp:maturityDate a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:date ;
+    rdfs:label "만기일"@ko ;
+    skos:altLabel "만기"@ko , "상환일"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "만기일" ; fp:coverage "full" .
+
+fp:couponRate a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:decimal ;
+    rdfs:label "표면금리"@ko ;
+    skos:altLabel "쿠폰금리"@ko , "이표금리"@ko ;
+    rdfs:comment "액면가 대비 연간 이자율(%). 실제 수익률과 다르다."@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "표면금리" ; fp:coverage "full" .
+
+fp:duration a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:decimal ;
+    rdfs:label "듀레이션"@ko ;
+    rdfs:comment "금리 1%p 변동 시 가격 변동폭의 근사. 값이 클수록 금리 민감도가 높다."@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "듀레이션" ; fp:coverage "full" .
+
+# 아래 두 속성은 매수 가능 종목 일부에만 채워져 있다. 전체 집계·정렬의 근거로
+# 쓰면 모집단이 왜곡되므로, 답변에 반드시 이 한계를 함께 밝힌다.
+fp:purchaseYield a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:decimal ;
+    rdfs:label "매수수익률"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "매수수익률" ; fp:coverage "partial" ;
+    rdfs:comment "매수 가능 종목 일부만 수록."@ko .
+
+fp:afterTaxYield a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:decimal ;
+    rdfs:label "세후수익률"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "세후수익률" ; fp:coverage "partial" ;
+    rdfs:comment "매수 가능 종목 일부만 수록."@ko .
+
+fp:tradable a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticBond ; rdfs:range xsd:boolean ;
+    rdfs:label "매수가능여부"@ko ;
+    skos:altLabel "매수가능"@ko , "판매가능"@ko ;
+    fp:sourceTable "PRBD01N001" ; fp:sourceColumn "매수가능여부" ; fp:coverage "full" .
+
+# =============================================================================
+# 값 도메인 — 신용등급
+# =============================================================================
+# 서열(ordinal)을 부여하는 이유: "AA- 이상"은 문자열 비교로 풀 수 없다.
+# 사전순으로는 AA- < AAA < AA+ 가 되어 조건이 깨진다. 등급을 정수로 사상해
+# 부등호 비교가 성립하게 만든다. 장기·단기 등급은 별도 체계이므로 섞지 않는다.
+
+fp:CreditRating a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "신용등급"@ko .
+
+fp:LongTermRatingScheme a skos:ConceptScheme ;
+    rdfs:label "장기 신용등급 체계"@ko ;
+    rdfs:comment "회사채·금융채 등 장기물 등급. AAA ~ D."@ko ;
+    fp:appliesTo fp:DomesticBond .
+
+fp:ratingAAA  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "AAA"  ; fp:ordinal 21 .
+fp:ratingAAp  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "AA+"  ; fp:ordinal 20 .
+fp:ratingAA0  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "AA0"  ; skos:altLabel "AA" ; fp:ordinal 19 .
+fp:ratingAAm  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "AA-"  ; fp:ordinal 18 .
+fp:ratingAp   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "A+"   ; fp:ordinal 17 .
+fp:ratingA0   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "A0"   ; skos:altLabel "A" ; fp:ordinal 16 .
+fp:ratingAm   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "A-"   ; fp:ordinal 15 .
+fp:ratingBBBp a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BBB+" ; fp:ordinal 14 .
+fp:ratingBBB0 a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BBB0" ; skos:altLabel "BBB" ; fp:ordinal 13 .
+fp:ratingBBBm a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BBB-" ; fp:ordinal 12 .
+fp:ratingBBp  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BB+"  ; fp:ordinal 11 .
+fp:ratingBB0  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BB0"  ; skos:altLabel "BB" ; fp:ordinal 10 .
+fp:ratingBBm  a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "BB-"  ; fp:ordinal 9 .
+fp:ratingBp   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "B+"   ; fp:ordinal 8 .
+fp:ratingB0   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "B0"   ; skos:altLabel "B" ; fp:ordinal 7 .
+fp:ratingBm   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "B-"   ; fp:ordinal 6 .
+fp:ratingCCCp a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "CCC+" ; fp:ordinal 5 .
+fp:ratingCCC0 a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "CCC0" ; skos:altLabel "CCC" ; fp:ordinal 4 .
+fp:ratingCCCm a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "CCC-" ; fp:ordinal 3 .
+fp:ratingCC   a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "CC"   ; fp:ordinal 2 .
+fp:ratingC    a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "C"    ; fp:ordinal 1 .
+fp:ratingD    a fp:CreditRating ; skos:inScheme fp:LongTermRatingScheme ; skos:prefLabel "D"    ; fp:ordinal 0 .
+
+fp:ShortTermRatingScheme a skos:ConceptScheme ;
+    rdfs:label "단기 신용등급 체계"@ko ;
+    rdfs:comment "기업어음(CP)·전자단기사채 등 단기물 등급. A1 ~ D."@ko ;
+    fp:appliesTo fp:DomesticBond .
+
+fp:ratingA1   a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A1"  ; fp:ordinal 8 .
+fp:ratingA2p  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A2+" ; fp:ordinal 7 .
+fp:ratingA20  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A2"  ; fp:ordinal 6 .
+fp:ratingA2m  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A2-" ; fp:ordinal 5 .
+fp:ratingA3p  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A3+" ; fp:ordinal 4 .
+fp:ratingA30  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A3"  ; fp:ordinal 3 .
+fp:ratingA3m  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "A3-" ; fp:ordinal 2 .
+fp:ratingSTB  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "B"   ; fp:ordinal 1 .
+fp:ratingSTC  a fp:CreditRating ; skos:inScheme fp:ShortTermRatingScheme ; skos:prefLabel "C"   ; fp:ordinal 0 .
+
+# =============================================================================
+# 값 도메인 — 채권종류
+# =============================================================================
+
+fp:BondType a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "채권종류"@ko .
+
+fp:BondTypeScheme a skos:ConceptScheme ;
+    rdfs:label "채권종류 체계"@ko ;
+    fp:appliesTo fp:DomesticBond .
+
+fp:bondGovernment a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "국채"@ko ; skos:altLabel "국고채"@ko .
+fp:bondMunicipal a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "지방채"@ko .
+fp:bondSpecial a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "특수채"@ko .
+fp:bondFinancial a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "금융채"@ko ; skos:altLabel "은행채"@ko .
+fp:bondCorporate a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "회사채"@ko .
+fp:bondCP a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "기업어음"@ko ; skos:altLabel "CP"@ko .
+fp:bondABS a fp:BondType ; skos:inScheme fp:BondTypeScheme ;
+    skos:prefLabel "자산유동화증권"@ko ; skos:altLabel "ABS"@ko .

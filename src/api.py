@@ -61,6 +61,10 @@ def answer(request: Request, question_id: str = "", question: str = ""):
 
 @app.get("/health")
 def health():
-    from .kb import registry
+    from .kb import ontology, registry
 
-    return {"status": "ok", "products_indexed": registry.product_count()}
+    return {
+        "status": "ok",
+        "products_indexed": registry.product_count(),
+        "ontology": ontology.stats(),
+    }

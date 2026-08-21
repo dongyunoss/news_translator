@@ -1,0 +1,150 @@
+@prefix fp:   <http://mafest.ai/product#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://mafest.ai/product/etf_gl>
+    a owl:Ontology ;
+    owl:imports <http://mafest.ai/product> ;
+    rdfs:label "해외 ETF 온톨로지"@ko ;
+    rdfs:comment "해외 ETF 마스터(PREF02N001, 5,646건)의 도메인 정의."@ko .
+
+fp:ForeignETF a owl:Class ;
+    rdfs:subClassOf fp:ETF ;
+    rdfs:label "해외 ETF"@ko ;
+    skos:altLabel "ETF"@ko , "해외ETF"@ko , "미국 ETF"@ko , "글로벌 ETF"@ko ;
+    fp:sourceTable "PREF02N001" .
+
+# =============================================================================
+# 식별자
+# =============================================================================
+# 해외 ETF는 국내 6자리 종목코드가 아니라 티커·ISIN으로 식별한다. 같은 티커가
+# 상장시장마다 다른 상품을 가리킬 수 있으므로 티커 단독으로는 유일키가 아니다.
+# Entity Resolution에서 티커만으로 상품을 확정하면 안 되는 이유다.
+
+fp:ticker a owl:DatatypeProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:string ;
+    rdfs:label "티커"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "티커" ; fp:coverage "full" ;
+    rdfs:comment "상장시장과 함께 써야 유일하게 식별된다."@ko .
+
+fp:isin a owl:DatatypeProperty , owl:InverseFunctionalProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:string ;
+    rdfs:label "ISIN"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "ISIN" ; fp:coverage "full" ;
+    rdfs:comment "국제 증권 식별번호. 상품을 유일하게 지목하는 키."@ko .
+
+fp:listedOn a owl:ObjectProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range fp:Market ;
+    rdfs:label "상장시장"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "상장시장" ; fp:coverage "full" .
+
+fp:tradingCurrency a owl:ObjectProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range fp:Currency ;
+    rdfs:label "거래통화"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "거래통화" ; fp:coverage "full" .
+
+# =============================================================================
+# 속성
+# =============================================================================
+
+fp:foreignBaseIndex a owl:DatatypeProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:string ;
+    rdfs:label "기초지수"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "기초지수" ; fp:coverage "full" .
+
+fp:foreignExpenseRatio a owl:DatatypeProperty ;
+    rdfs:subPropertyOf fp:expenseRatio ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:decimal ;
+    rdfs:label "총보수"@ko ;
+    skos:altLabel "보수"@ko , "운용보수"@ko , "수수료"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "총보수" ; fp:coverage "full" .
+
+# 유일한 장문 서술 컬럼이자 영문이다. 정형 검색으로는 다룰 수 없어 벡터 인덱스의
+# 주 대상이 되고, 한국어 질의와 매칭하려면 교차언어 검색이 필요하다.
+fp:strategy a owl:DatatypeProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:string ;
+    rdfs:label "운용전략"@ko ;
+    skos:altLabel "투자전략"@ko , "전략"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "운용전략" ; fp:coverage "full" ;
+    rdfs:comment "영문 서술형. 벡터 인덱스 대상이며 한국어 질의와는 교차언어로 매칭한다."@ko .
+
+fp:aum a owl:DatatypeProperty ;
+    rdfs:subPropertyOf fp:netAssets ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:decimal ;
+    rdfs:label "운용규모"@ko ;
+    skos:altLabel "AUM"@en , "순자산"@ko , "자산규모"@ko ;
+    rdfs:comment "AUM. 거래통화 기준이므로 통화가 다른 상품 간 비교 시 환산이 필요하다."@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "AUM" ; fp:coverage "full" .
+
+fp:closePrice a owl:DatatypeProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:decimal ;
+    rdfs:label "종가"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "종가" ; fp:coverage "full" .
+
+fp:tradingVolume a owl:DatatypeProperty ;
+    rdfs:domain fp:ForeignETF ; rdfs:range xsd:decimal ;
+    rdfs:label "거래량"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "거래량" ; fp:coverage "full" .
+
+fp:foreignManager a owl:ObjectProperty ;
+    rdfs:subPropertyOf fp:managedBy ;
+    rdfs:domain fp:ForeignETF ; rdfs:range fp:AssetManager ;
+    rdfs:label "운용사"@ko ;
+    fp:sourceTable "PREF02N001" ; fp:sourceColumn "운용사" ; fp:coverage "full" .
+
+# =============================================================================
+# 값 도메인 — 상장시장 · 거래통화
+# =============================================================================
+
+fp:Market a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "상장시장"@ko .
+
+fp:MarketScheme a skos:ConceptScheme ;
+    rdfs:label "상장시장 체계"@ko ;
+    fp:appliesTo fp:ForeignETF .
+
+fp:marketNYSE a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "NYSE"@en ; skos:altLabel "뉴욕증권거래소"@ko , "NYSE Arca"@en .
+fp:marketNASDAQ a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "NASDAQ"@en ; skos:altLabel "나스닥"@ko .
+fp:marketAMEX a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "AMEX"@en ; skos:altLabel "아멕스"@ko .
+fp:marketLSE a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "LSE"@en ; skos:altLabel "런던증권거래소"@ko .
+fp:marketTSE a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "TSE"@en ; skos:altLabel "도쿄증권거래소"@ko .
+fp:marketHKEX a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "HKEX"@en ; skos:altLabel "홍콩거래소"@ko .
+fp:marketXETRA a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "XETRA"@en ; skos:altLabel "독일거래소"@ko .
+fp:marketSSE a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "SSE"@en ; skos:altLabel "상하이증권거래소"@ko .
+fp:marketSZSE a fp:Market ; skos:inScheme fp:MarketScheme ;
+    skos:prefLabel "SZSE"@en ; skos:altLabel "선전증권거래소"@ko .
+
+fp:Currency a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "통화"@ko .
+
+fp:CurrencyScheme a skos:ConceptScheme ;
+    rdfs:label "거래통화 체계"@ko ;
+    rdfs:comment "ISO 4217."@ko ;
+    fp:appliesTo fp:ForeignETF .
+
+fp:currencyUSD a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "USD"@en ; skos:altLabel "달러"@ko , "미국달러"@ko .
+fp:currencyKRW a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "KRW"@en ; skos:altLabel "원"@ko , "원화"@ko .
+fp:currencyEUR a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "EUR"@en ; skos:altLabel "유로"@ko .
+fp:currencyJPY a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "JPY"@en ; skos:altLabel "엔"@ko , "엔화"@ko .
+fp:currencyGBP a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "GBP"@en ; skos:altLabel "파운드"@ko .
+fp:currencyHKD a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "HKD"@en ; skos:altLabel "홍콩달러"@ko .
+fp:currencyCNY a fp:Currency ; skos:inScheme fp:CurrencyScheme ;
+    skos:prefLabel "CNY"@en ; skos:altLabel "위안"@ko , "위안화"@ko .

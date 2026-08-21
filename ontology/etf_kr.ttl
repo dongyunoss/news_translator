@@ -1,0 +1,115 @@
+@prefix fp:   <http://mafest.ai/product#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://mafest.ai/product/etf_kr>
+    a owl:Ontology ;
+    owl:imports <http://mafest.ai/product> ;
+    rdfs:label "국내 ETF 온톨로지"@ko ;
+    rdfs:comment "국내 ETF 마스터(PREF01N001, 1,734건)의 도메인 정의."@ko .
+
+fp:DomesticETF a owl:Class ;
+    rdfs:subClassOf fp:ETF ;
+    rdfs:label "국내 ETF"@ko ;
+    skos:altLabel "ETF"@ko , "국내ETF"@ko , "국내상장 ETF"@ko ;
+    fp:sourceTable "PREF01N001" .
+
+# =============================================================================
+# 속성
+# =============================================================================
+
+fp:etfManager a owl:ObjectProperty ;
+    rdfs:subPropertyOf fp:managedBy ;
+    rdfs:domain fp:DomesticETF ; rdfs:range fp:AssetManager ;
+    rdfs:label "운용사"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "운용사" ; fp:coverage "full" .
+
+# 기초지수·총보수는 일부 종목만 수록된다. "총보수가 가장 낮은 국내 ETF"처럼
+# 전수 정렬을 요구하는 질의에 답할 때는 미수록 종목의 존재를 밝혀야 한다.
+fp:baseIndex a owl:DatatypeProperty ;
+    rdfs:domain fp:DomesticETF ; rdfs:range xsd:string ;
+    rdfs:label "기초지수"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "기초지수" ; fp:coverage "partial" ;
+    rdfs:comment "일부 종목만 수록."@ko .
+
+fp:expenseRatio a owl:DatatypeProperty ;
+    rdfs:domain fp:ETF ; rdfs:range xsd:decimal ;
+    rdfs:label "총보수"@ko ;
+    skos:altLabel "보수"@ko , "운용보수"@ko , "수수료"@ko ;
+    rdfs:comment "연간 운용보수율(%). 국내 ETF는 일부 종목만 수록."@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "총보수" ; fp:coverage "partial" .
+
+fp:return1D a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "1일 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "1일수익률" ; fp:coverage "full" .
+fp:return1W a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "1주 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "1주수익률" ; fp:coverage "full" .
+fp:return1M a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "1개월 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "1개월수익률" ; fp:coverage "full" .
+fp:return3M a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "3개월 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "3개월수익률" ; fp:coverage "full" .
+fp:return6M a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "6개월 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "6개월수익률" ; fp:coverage "full" .
+fp:return1Y a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "1년 수익률"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "1년수익률" ; fp:coverage "full" .
+fp:returnYTD a owl:DatatypeProperty ; rdfs:domain fp:Product ; rdfs:range xsd:decimal ;
+    rdfs:label "연초이후 수익률"@ko ; rdfs:comment "YTD."@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "YTD수익률" ; fp:coverage "full" .
+
+fp:etfNetAssets a owl:DatatypeProperty ;
+    rdfs:subPropertyOf fp:netAssets ;
+    rdfs:domain fp:DomesticETF ; rdfs:range xsd:decimal ;
+    rdfs:label "순자산"@ko ;
+    fp:sourceTable "PREF01N001" ; fp:sourceColumn "순자산" ; fp:coverage "full" .
+
+# =============================================================================
+# 마스터에 없는 축 — 외부 수집으로 채우는 관계
+# =============================================================================
+# 마스터는 상품 한 건의 속성만 담는다. "무엇을 편입했는가", "어떤 테마와 엮이는가"
+# 같은 관계는 컬럼으로 존재하지 않으므로 별도 수집으로 채운다. 이 관계들이
+# 없으면 편입·테마·계열 관련 질의는 구조적으로 답할 수 없다.
+
+fp:holds a owl:ObjectProperty ;
+    rdfs:domain fp:Fund ; rdfs:range fp:Company ;
+    rdfs:label "편입종목"@ko ;
+    skos:altLabel "구성종목"@ko , "보유종목"@ko , "포트폴리오"@ko ;
+    fp:coverage "external" ;
+    rdfs:comment "구성종목(PDF). 마스터 미수록 — 운용사 공시로 수집."@ko .
+
+fp:relatedTheme a owl:ObjectProperty ;
+    rdfs:domain fp:Product ; rdfs:range fp:Theme ;
+    rdfs:label "관련테마"@ko ;
+    fp:coverage "external" ;
+    rdfs:comment "마스터 미수록 — 뉴스·공시에서 시점과 함께 추출."@ko .
+
+fp:Company a owl:Class ;
+    rdfs:label "기업"@ko .
+
+fp:subsidiaryOf a owl:ObjectProperty ;
+    rdfs:domain fp:Company ; rdfs:range fp:Company ;
+    rdfs:label "자회사관계"@ko ;
+    fp:coverage "external" ;
+    rdfs:comment "마스터 미수록 — 기업공시로 수집."@ko .
+
+fp:Theme a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "테마"@ko ;
+    rdfs:comment """상품을 묶는 주제축. 마스터의 투자자산군·투자지역보다 세분화되어
+    있고 시간에 따라 변한다. 뉴스에서 추출하므로 관측 시점을 함께 기록한다."""@ko .
+
+fp:themeObservedAt a owl:DatatypeProperty ;
+    rdfs:domain fp:Theme ; rdfs:range xsd:date ;
+    rdfs:label "테마 관측일"@ko ;
+    rdfs:comment "\"최근 6개월간 연결 이력\" 같은 기간 조건을 풀기 위한 시점 정보."@ko .
+
+fp:themeSource a owl:DatatypeProperty ;
+    rdfs:domain fp:Theme ; rdfs:range xsd:string ;
+    rdfs:label "테마 출처"@ko ;
+    rdfs:comment "근거로 제시할 원문 URL 또는 문서 식별자."@ko .

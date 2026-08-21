@@ -1,0 +1,121 @@
+@prefix fp:   <http://mafest.ai/product#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://mafest.ai/product/fund_pub>
+    a owl:Ontology ;
+    owl:imports <http://mafest.ai/product> ;
+    rdfs:label "공모펀드 온톨로지"@ko ;
+    rdfs:comment "공모펀드마스터(PRFD01N001, 95,619건)의 도메인 정의. 4개 상품군 중 최대."@ko .
+
+fp:PublicFund a owl:Class ;
+    rdfs:subClassOf fp:Fund ;
+    rdfs:label "공모펀드"@ko ;
+    skos:altLabel "펀드"@ko , "공모 펀드"@ko , "뮤추얼펀드"@ko ;
+    fp:sourceTable "PRFD01N001" .
+
+# =============================================================================
+# 속성
+# =============================================================================
+
+fp:fundType a owl:ObjectProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range fp:AssetClass ;
+    rdfs:label "운용속성"@ko ;
+    rdfs:comment "주식형·채권형·혼합형·MMF 등. 공통 투자자산군 체계를 값으로 쓴다."@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "운용속성" ; fp:coverage "full" .
+
+fp:benchmark a owl:DatatypeProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:string ;
+    rdfs:label "벤치마크"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "벤치마크" ; fp:coverage "full" .
+
+fp:currencyHedged a owl:DatatypeProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:boolean ;
+    rdfs:label "환헤지여부"@ko ;
+    skos:altLabel "환헤지"@ko , "헤지"@ko ;
+    rdfs:comment "환율 변동 위험을 제거했는지. 통상 상품명의 (H) 표기와 대응한다."@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "환헤지여부" ; fp:coverage "full" .
+
+fp:onSale a owl:DatatypeProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:boolean ;
+    rdfs:label "판매여부"@ko ;
+    skos:altLabel "판매상태"@ko , "판매중"@ko ;
+    rdfs:comment "\"현재 판매 가능한\" 조건의 필터 대상."@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "판매여부" ; fp:coverage "full" .
+
+fp:fundNetAssets a owl:DatatypeProperty ;
+    rdfs:subPropertyOf fp:netAssets ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "순자산"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "순자산" ; fp:coverage "full" .
+
+# 공모펀드 수익률은 1주~5년 구간으로, ETF(1D~1Y·YTD)와 구간이 다르다.
+# "1일 수익률이 가장 높은 펀드"는 구간 자체가 없으므로 답할 수 없다.
+fp:fundReturn1W a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "1주 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "1주수익률" ; fp:coverage "full" .
+fp:fundReturn1M a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "1개월 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "1개월수익률" ; fp:coverage "full" .
+fp:fundReturn3M a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "3개월 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "3개월수익률" ; fp:coverage "full" .
+fp:fundReturn6M a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "6개월 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "6개월수익률" ; fp:coverage "full" .
+fp:fundReturn1Y a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "1년 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "1년수익률" ; fp:coverage "full" .
+fp:fundReturn3Y a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "3년 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "3년수익률" ; fp:coverage "full" .
+fp:fundReturn5Y a owl:DatatypeProperty ; rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "5년 수익률"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:sourceColumn "5년수익률" ; fp:coverage "full" .
+
+# =============================================================================
+# 미수록 속성 — 답변 불가 판정의 근거
+# =============================================================================
+# 공모펀드마스터에는 보수 정보가 없다. "총보수가 낮은 펀드를 골라줘" 같은 질의는
+# 상품이 실재하고 조건도 자연스럽지만 제공 데이터로는 확인할 수 없다.
+# 이 사실을 온톨로지에 선언해 두면 가드가 검색 전에 판별할 수 있다.
+
+fp:fundExpenseRatio a owl:DatatypeProperty ;
+    rdfs:subPropertyOf fp:expenseRatio ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "총보수"@ko ;
+    skos:altLabel "보수"@ko , "운용보수"@ko , "수수료"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:coverage "none" ;
+    rdfs:comment "공모펀드마스터에 보수 정보 미수록. 이 속성을 묻는 질의는 확인 불가."@ko .
+
+fp:frontEndLoad a owl:DatatypeProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "선취수수료"@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:coverage "none" ;
+    rdfs:comment "미수록. 확인 불가."@ko .
+
+fp:ter a owl:DatatypeProperty ;
+    rdfs:domain fp:PublicFund ; rdfs:range xsd:decimal ;
+    rdfs:label "TER"@ko ; rdfs:comment "총비용비율. 미수록 — 확인 불가."@ko ;
+    fp:sourceTable "PRFD01N001" ; fp:coverage "none" .
+
+# =============================================================================
+# 값 도메인 — 판매 상태
+# =============================================================================
+
+fp:SaleStatus a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "판매상태"@ko .
+
+fp:SaleStatusScheme a skos:ConceptScheme ;
+    rdfs:label "판매상태 체계"@ko ;
+    fp:appliesTo fp:PublicFund .
+
+fp:saleOn a fp:SaleStatus ; skos:inScheme fp:SaleStatusScheme ;
+    skos:prefLabel "판매중"@ko ; skos:altLabel "판매가능"@ko .
+fp:saleOff a fp:SaleStatus ; skos:inScheme fp:SaleStatusScheme ;
+    skos:prefLabel "판매중지"@ko ; skos:altLabel "판매불가"@ko .
+fp:saleClosed a fp:SaleStatus ; skos:inScheme fp:SaleStatusScheme ;
+    skos:prefLabel "설정종료"@ko ; skos:altLabel "청산"@ko .
