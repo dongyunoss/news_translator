@@ -39,6 +39,7 @@ python run.py
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | `POST` | `/api/translate` | `{"text": "..."}` → 문장별 쉬운 번역 + 용어 + 관련 종목 |
+| `POST` | `/api/quiz` | `{"text": "...", "question_count": 3~20}` → 번역/용어/종목 기반 객관식 퀴즈 생성 |
 | `GET` | `/api/stocks/{code}` | 현재가, 등락률, 최근 30일 스파크라인 |
 | `GET` | `/api/stocks/{code}/chart?range=1m\|3m\|6m\|1y` | 일봉 OHLCV 시계열 |
 

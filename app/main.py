@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import stocks
-from .translator import translate_article
+from .translator import translate_article, generate_quiz
 
 app = FastAPI(title="주린이 뉴스 번역기")
 
@@ -23,9 +23,19 @@ class TranslateRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=20000)
 
 
+class QuizRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=20000)
+    question_count: int = Field(default=10, ge=3, le=20)
+
+
 @app.post("/api/translate")
 def translate(req: TranslateRequest):
     return translate_article(req.text)
+
+
+@app.post("/api/quiz")
+def quiz(req: QuizRequest):
+    return generate_quiz(req.text, req.question_count)
 
 
 @app.get("/api/stocks/{code}")

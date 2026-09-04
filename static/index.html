@@ -15,6 +15,10 @@
 
   <main>
     <section class="card" id="input-section">
+      <div class="mode-switch" aria-label="실행 모드">
+        <button class="mode-btn" data-mode="translate">번역 모드</button>
+        <button class="mode-btn" data-mode="quiz">퀴즈 모드</button>
+      </div>
       <textarea id="article-input" rows="8"
         placeholder="번역하고 싶은 경제 뉴스 기사를 붙여넣어 주세요…"></textarea>
       <div class="input-actions">
@@ -24,7 +28,16 @@
           <button class="sample-btn" data-sample="1">전기차·자동차</button>
           <button class="sample-btn" data-sample="2">방산·조선</button>
         </div>
-        <button id="translate-btn">쉬운 말로 번역하기</button>
+        <div class="quiz-controls hidden">
+          <label for="quiz-count">문항 수</label>
+          <select id="quiz-count">
+            <option value="6">6</option>
+            <option value="8">8</option>
+            <option value="10" selected>10</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+        <button id="action-btn">쉬운 말로 번역하기</button>
       </div>
       <p id="error-box" class="error" hidden></p>
     </section>
@@ -37,6 +50,16 @@
       </div>
       <div class="hint">💡 문장 위에 마우스를 올리면 관련 종목 동향이 떠요. <span class="ticker-demo">파란 종목명</span>이나 <span class="term-demo">점선 용어</span>도 눌러보고 올려보세요.</div>
       <div id="sentences"></div>
+    </section>
+
+    <section id="quiz-section" class="card" hidden>
+      <h2>🧠 금융 퀴즈 모드</h2>
+      <p id="quiz-meta" class="quiz-meta"></p>
+      <div id="quiz-list"></div>
+      <div class="quiz-actions">
+        <button id="quiz-submit" class="primary-btn">채점하기</button>
+      </div>
+      <p id="quiz-result" class="quiz-result" hidden></p>
     </section>
   </main>
 

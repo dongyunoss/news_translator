@@ -47,11 +47,39 @@ async function fetchJSON(url, options) {
 }
 
 // ---------------------------------------------------------------------------
-// 번역 실행
+// 실행 모드
 // ---------------------------------------------------------------------------
-const translateBtn = $("#translate-btn");
+const actionBtn = $("#action-btn");
 const articleInput = $("#article-input");
 const errorBox = $("#error-box");
+const modeButtons = document.querySelectorAll(".mode-btn");
+const quizCountSelect = $("#quiz-count");
+const resultSection = $("#result-section");
+const quizSection = $("#quiz-section");
+const quizList = $("#quiz-list");
+const quizMeta = $("#quiz-meta");
+const quizResult = $("#quiz-result");
+const quizSubmitBtn = $("#quiz-submit");
+
+let appMode = "translate";
+let currentQuiz = [];
+let selectedAnswers = {};
+
+function setMode(nextMode) {
+  appMode = nextMode;
+  modeButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === nextMode);
+  });
+  actionBtn.textContent = nextMode === "translate" ? "쉬운 말로 번역하기" : "퀴즈 만들어 보기";
+  quizCountSelect.closest(".quiz-controls").classList.toggle("hidden", nextMode !== "quiz");
+  errorBox.hidden = true;
+}
+
+modeButtons.forEach((btn) => {
+  btn.addEventListener("click", () => setMode(btn.dataset.mode));
+});
+
+setMode("translate");
 
 document.querySelectorAll(".sample-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -60,7 +88,15 @@ document.querySelectorAll(".sample-btn").forEach((btn) => {
   });
 });
 
-translateBtn.addEventListener("click", async () => {
+actionBtn.addEventListener("click", async () => {
+  if (appMode === "translate") {
+    await runTranslate();
+    return;
+  }
+  await runQuiz();
+});
+
+async function runTranslate() {
   const text = articleInput.value.trim();
   errorBox.hidden = true;
   if (!text) {
@@ -68,23 +104,60 @@ translateBtn.addEventListener("click", async () => {
     errorBox.hidden = false;
     return;
   }
-  translateBtn.disabled = true;
-  translateBtn.textContent = "번역 중…";
+
+  actionBtn.disabled = true;
+  actionBtn.textContent = "번역 중…";
   try {
     const data = await fetchJSON(API_BASE_URL + "/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
+    resultSection.hidden = false;
+    quizSection.hidden = true;
     renderResult(data);
   } catch (err) {
     errorBox.textContent = `번역에 실패했어요: ${err.message}`;
     errorBox.hidden = false;
   } finally {
-    translateBtn.disabled = false;
-    translateBtn.textContent = "쉬운 말로 번역하기";
+    actionBtn.disabled = false;
+    actionBtn.textContent = "쉬운 말로 번역하기";
   }
-});
+}
+
+async function runQuiz() {
+  const text = articleInput.value.trim();
+  errorBox.hidden = true;
+  if (!text) {
+    errorBox.textContent = "먼저 기사를 붙여넣어 주세요.";
+    errorBox.hidden = false;
+    return;
+  }
+
+  actionBtn.disabled = true;
+  actionBtn.textContent = "퀴즈 생성 중…";
+  selectedAnswers = {};
+
+  try {
+    const data = await fetchJSON(API_BASE_URL + "/api/quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        question_count: Number(quizCountSelect.value || 10),
+      }),
+    });
+    resultSection.hidden = true;
+    quizSection.hidden = false;
+    renderQuiz(data);
+  } catch (err) {
+    errorBox.textContent = `퀴즈 생성 실패: ${err.message}`;
+    errorBox.hidden = false;
+  } finally {
+    actionBtn.disabled = false;
+    actionBtn.textContent = "퀴즈 만들어 보기";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 결과 렌더링
@@ -118,7 +191,8 @@ function decorateText(text, mentions, terms) {
 }
 
 function renderResult(data) {
-  $("#result-section").hidden = false;
+  resultSection.hidden = false;
+  quizSection.hidden = true;
 
   const noticeBox = $("#notice-box");
   noticeBox.hidden = !data.notice;
@@ -151,7 +225,58 @@ function renderResult(data) {
     container.appendChild(block);
   }
 
-  $("#result-section").scrollIntoView({ behavior: "smooth" });
+  resultSection.scrollIntoView({ behavior: "smooth" });
+}
+
+function renderQuiz(data) {
+  currentQuiz = data.questions || [];
+  quizList.innerHTML = "";
+  selectedAnswers = {};
+  quizSubmitBtn.disabled = true;
+  quizResult.hidden = true;
+
+  if (!currentQuiz.length) {
+    quizMeta.textContent = "현재 문장으로 생성 가능한 퀴즈가 없습니다.";
+    quizList.innerHTML = `<p class="quiz-empty">기사 내용을 바꿔서 다시 시도해 보세요.</p>`;
+    quizSubmitBtn.disabled = true;
+    return;
+  }
+
+  quizMeta.textContent = `총 ${currentQuiz.length}문항`;
+  currentQuiz.forEach((q, idx) => {
+    const item = document.createElement("div");
+    item.className = "quiz-item";
+    item.dataset.qid = q.id;
+
+    const prompt = document.createElement("div");
+    prompt.className = "quiz-prompt";
+    prompt.textContent = `${idx + 1}. ${q.prompt}`;
+    item.appendChild(prompt);
+
+    const optionWrap = document.createElement("div");
+    optionWrap.className = "quiz-option-list";
+
+    q.options.forEach((opt, optionIndex) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "quiz-choice";
+      btn.dataset.qid = q.id;
+      btn.dataset.index = String(optionIndex);
+      btn.textContent = opt;
+      optionWrap.appendChild(btn);
+    });
+
+    const hint = document.createElement("div");
+    hint.className = "quiz-feedback";
+    hint.dataset.qid = q.id;
+    hint.hidden = true;
+
+    item.appendChild(optionWrap);
+    item.appendChild(hint);
+    quizList.appendChild(item);
+  });
+
+  quizList.scrollIntoView({ behavior: "smooth" });
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +457,62 @@ document.addEventListener("mouseover", (e) => {
 });
 document.addEventListener("mouseout", (e) => {
   if (e.target.closest && e.target.closest(".term")) tooltip.hidden = true;
+});
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".quiz-choice");
+  if (!btn) return;
+
+  const qid = btn.dataset.qid;
+  const index = Number(btn.dataset.index);
+  selectedAnswers[qid] = index;
+
+  const item = btn.closest(".quiz-item");
+  item.querySelectorAll(".quiz-choice").forEach((choice) => {
+    choice.classList.toggle("active", choice === btn);
+  });
+
+  quizSubmitBtn.disabled = currentQuiz.every((q) => selectedAnswers[q.id] !== undefined);
+});
+
+quizSubmitBtn.addEventListener("click", () => {
+  let correct = 0;
+  for (const q of currentQuiz) {
+    const item = quizList.querySelector(`.quiz-item[data-qid="${q.id}"]`);
+    const user = selectedAnswers[q.id];
+    const hint = item.querySelector(`.quiz-feedback[data-qid="${q.id}"]`);
+
+    item.querySelectorAll(".quiz-choice").forEach((choice) => {
+      const idx = Number(choice.dataset.index);
+      choice.classList.toggle("correct", idx === q.answer);
+      choice.classList.toggle("wrong", user !== undefined && idx === user && idx !== q.answer);
+      choice.disabled = true;
+    });
+
+    if (user === q.answer) {
+      correct += 1;
+      hint.textContent = "정답이에요." + (q.explanation ? ` ${q.explanation}` : "");
+      hint.className = "quiz-feedback is-correct";
+      hint.hidden = false;
+    } else {
+      const expected = q.options[q.answer];
+      if (user === undefined) {
+        hint.textContent = `미응답: 정답은 "${expected}" 입니다.`;
+      } else {
+        hint.textContent = `틀렸어요. 정답은 "${expected}" 입니다.`;
+      }
+      hint.className = "quiz-feedback is-wrong";
+      hint.hidden = false;
+      if (q.explanation) {
+        hint.innerHTML += `<br><span class="quiz-explain">${q.explanation}</span>`;
+      }
+    }
+  }
+
+  const score = currentQuiz.length ? Math.round((correct / currentQuiz.length) * 100) : 0;
+  quizResult.textContent = `점수: ${correct}/${currentQuiz.length} 정답 (${score}점)`;
+  quizResult.hidden = false;
+  quizSubmitBtn.disabled = true;
 });
 
 // ---------------------------------------------------------------------------

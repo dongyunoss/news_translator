@@ -8,7 +8,9 @@ API 키가 없거나 호출에 실패하면 내장 경제 용어사전 기반 �
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import random
 import re
 import threading
 from pathlib import Path
@@ -25,6 +27,17 @@ _TERM_INDEX: list[tuple[str, dict]] = sorted(
     ((v, entry) for entry in GLOSSARY for v in entry["variants"]),
     key=lambda x: -len(x[0]),
 )
+
+_GLOSSARY_POOL = [
+    {"term": entry["variants"][0], "easy": entry["easy"], "desc": entry["desc"]}
+    for entry in GLOSSARY
+]
+_GLOSSARY_EASY_POOL = [entry["easy"] for entry in _GLOSSARY_POOL]
+
+_STOCK_POOL = [
+    f"{stock['name']} ({code})"
+    for code, stock in stocks.STOCKS.items()
+]
 
 MAX_ARTICLE_CHARS = 8000
 
@@ -93,6 +106,80 @@ def split_sentences(text: str) -> list[str]:
     parts = _SENTENCE_SPLIT_RE.split(text.strip())
     return [p.strip() for p in parts if p and p.strip()]
 
+
+def _stable_rng(seed_text: str) -> random.Random:
+    seed = int(hashlib.sha256(seed_text.encode("utf-8")).hexdigest()[:16], 16)
+    return random.Random(seed)
+
+
+def _build_choices(correct: str, pool: list[str], rng: random.Random, size: int = 4) -> tuple[list[str], int]:
+    candidates = [value for value in pool if value != correct]
+    if len(candidates) < size - 1:
+        candidates = candidates + [v for v in pool if v != correct]
+    choices = candidates[: size - 1]
+    choices.append(correct)
+    rng.shuffle(choices)
+    return choices, choices.index(correct)
+
+
+def _build_term_question(sentence: str, term: dict, rng: random.Random, qid: int) -> dict:
+    choices, correct_index = _build_choices(term["easy"], _GLOSSARY_EASY_POOL, rng)
+    snippet = sentence[:52].strip()
+    if len(sentence) > 52:
+        snippet += "…"
+    return {
+        "id": f"q{qid}",
+        "type": "multiple_choice",
+        "category": "term",
+        "prompt": f"기사 문장 \"{snippet}\"에서 '{term['term']}'의 뜻으로 가장 적절한 것은?",
+        "options": choices,
+        "answer": correct_index,
+        "explanation": term["desc"],
+    }
+
+
+def _build_stock_question(sentence: str, related: list[dict], rng: random.Random, qid: int) -> dict | None:
+    if not related:
+        return None
+    target = related[0]
+    choices, correct_index = _build_choices(
+        f"{target['name']} ({target['code']})",
+        _STOCK_POOL,
+        rng,
+    )
+    snippet = sentence[:52].strip()
+    if len(sentence) > 52:
+        snippet += "…"
+    return {
+        "id": f"q{qid}",
+        "type": "multiple_choice",
+        "category": "stock",
+        "prompt": f"문장 \"{snippet}\" 내용으로 가장 관련 있는 종목은?",
+        "options": choices,
+        "answer": correct_index,
+        "explanation": f"관련 근거: {target['name']}은(는) {target.get('reason', '문장 키워드와의 연결')}",
+    }
+
+
+def _fallback_questions(rng: random.Random, qid_start: int, count: int) -> list[dict]:
+    questions: list[dict] = []
+    qid = qid_start
+    while len(questions) < count:
+        term = rng.choice(_GLOSSARY_POOL)
+        choices, correct_index = _build_choices(term["easy"], _GLOSSARY_EASY_POOL, rng)
+        questions.append(
+            {
+                "id": f"q{qid}",
+                "type": "multiple_choice",
+                "category": "term",
+                "prompt": f"용어 '{term['term']}'의 뜻으로 가장 적절한 것은?",
+                "options": choices,
+                "answer": correct_index,
+                "explanation": term["desc"],
+            }
+        )
+        qid += 1
+    return questions
 
 def find_terms(sentence: str) -> list[dict]:
     """문장에 등장하는 용어사전 항목을 찾는다 (항목당 1회)."""
@@ -421,4 +508,78 @@ def translate_article(text: str) -> dict:
         "source": source,
         "notice": notice,
         "sentences": result_sentences,
+    }
+
+
+def generate_quiz(text: str, count: int = 8) -> dict:
+    text = text.strip()[:MAX_ARTICLE_CHARS]
+    if count <= 0:
+        return {
+            "source": "local",
+            "notice": "문항 수가 0 이하로 요청돼 퀴즈를 만들지 않았어요.",
+            "questions": [],
+            "question_count": 0,
+            "requested_count": 0,
+        }
+
+    sentences = split_sentences(text)
+    if not sentences:
+        return {
+            "source": "local",
+            "notice": "퀴즈로 만들 문장이 없어요.",
+            "questions": [],
+            "question_count": 0,
+            "requested_count": count,
+        }
+
+    rng = _stable_rng(text)
+    sentence_meta = []
+    for s in sentences:
+        _, related = stocks.analyze_sentence(s)
+        sentence_meta.append((s, find_terms(s), _, related))
+
+    questions: list[dict] = []
+    used_terms: set[str] = set()
+    used_stocks: set[str] = set()
+
+    qid = 0
+    # 1차: 문장 기반 용어/종목 문제
+    for s, terms, _, related in sentence_meta:
+        if len(questions) >= count:
+            break
+        for term in terms:
+            if len(questions) >= count:
+                break
+            if term["term"] in used_terms:
+                continue
+            q = _build_term_question(s, term, rng, qid)
+            qid += 1
+            questions.append(q)
+            used_terms.add(term["term"])
+            if len(questions) >= count:
+                break
+
+        if len(questions) >= count:
+            break
+        if related:
+            top_related = [r for r in related if r["code"] not in used_stocks][:1]
+            q = _build_stock_question(s, top_related, rng, qid)
+            if q:
+                qid += 1
+                questions.append(q)
+                used_stocks.update(r["code"] for r in top_related)
+
+    # 2차: 데이터가 부족하면 기사 외 용어로 보완
+    if len(questions) < count:
+        questions.extend(_fallback_questions(rng, qid, count - len(questions)))
+
+    # 중복 보정: 퀴즈 수를 초과 방지
+    if len(questions) > count:
+        questions = questions[:count]
+
+    return {
+        "source": "local",
+        "questions": questions,
+        "question_count": len(questions),
+        "requested_count": count,
     }
